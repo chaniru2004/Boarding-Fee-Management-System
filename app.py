@@ -745,6 +745,15 @@ def create_app(test_config: dict | None = None) -> Flask:
                 cleanup_demo_data(db)
         print("Demo data successfully removed from PostgreSQL.")
 
+    @app.cli.command("import-form-data")
+    def import_form_data_command():
+        with app.app_context():
+            with get_db() as db:
+                import_form_residents(db)
+                ensure_monthly_fees_db(db, current_month())
+                refresh_all_statuses_db(db, current_month())
+        print("Form residents and rooms successfully imported.")
+
     @app.cli.command("seed-data")
     def seed_data_command():
         with app.app_context():
@@ -918,6 +927,8 @@ def init_db() -> None:
         db.commit()
 
         cleanup_demo_data(db)
+        import_form_residents(db)
+        ensure_monthly_fees_db(db, current_month())
 
 def cleanup_demo_data(db) -> None:
     demo_residents = ["Amani Perera", "Nuwan Silva", "Kavindi Fernando", "Rashid Khan"]
@@ -970,131 +981,368 @@ def cleanup_demo_data(db) -> None:
     db.commit()
 
 
+FORM_ROOMS = [
+    {"room_number": "Ground Floor Room 1", "floor": "Ground", "capacity": 2, "notes": "Ground floor room 1"},
+    {"room_number": "Ground Floor Room 3", "floor": "Ground", "capacity": 2, "notes": "Ground floor room 3"},
+    {"room_number": "1st Floor", "floor": "1", "capacity": 2, "notes": "First floor"},
+    {"room_number": "Room 3", "floor": "1", "capacity": 2, "notes": "First floor, third room"},
+    {"room_number": "Room 2", "floor": "2", "capacity": 2, "notes": "Second floor"},
+    {"room_number": "Room 4", "floor": "2", "capacity": 2, "notes": "Second floor, room no 04"},
+    {"room_number": "Room 6", "floor": "2", "capacity": 2, "notes": "Second floor, room no 06"},
+    {"room_number": "2nd Floor", "floor": "2", "capacity": 4, "notes": "Second floor shared"},
+    {"room_number": "2nd Floor Room 1", "floor": "2", "capacity": 2, "notes": "Second floor room 1"},
+    {"room_number": "2nd Floor Master Bed Room", "floor": "2", "capacity": 4, "notes": "Second floor master bedroom"},
+    {"room_number": "Room 1", "floor": "3", "capacity": 1, "notes": "Third floor single room"},
+    {"room_number": "3rd Floor", "floor": "3", "capacity": 4, "notes": "Third floor shared"},
+]
+
+FORM_RESIDENTS = [
+    {
+        "full_name": "Ranthotuwila Patabendige Thesanya Sanugi Rathnayaka",
+        "phone": "0774419567",
+        "nic": "200278302070",
+        "date_of_birth": "2002-10-09",
+        "address": "No 72, Yatiyana road , Weligama",
+        "faculty": "Faculty of Law",
+        "guardian_name": "RPR Rathnayaka",
+        "guardian_phone": "0714469567",
+        "room_number": "3rd Floor",
+        "monthly_fee": "14000.00",
+    },
+    {
+        "full_name": "Algewaththage Sudeepa Lakshani",
+        "phone": "0759578629",
+        "nic": "998032423V",
+        "date_of_birth": "1999-10-29",
+        "address": "No.06, Ranawiru Priyadarshani Mawatha, Walgama, Matara",
+        "faculty": "Faculty of Law",
+        "guardian_name": "A.W. Sumith Wsantha",
+        "guardian_phone": "0743036808",
+        "room_number": "2nd Floor",
+        "monthly_fee": "15000.00",
+    },
+    {
+        "full_name": "Diduli Sumanarathna",
+        "phone": "0766173696",
+        "nic": "200179004367",
+        "date_of_birth": "2001-10-16",
+        "address": "No 5G, Mendoraduwa, Katubedda",
+        "faculty": "Bachelor of Laws",
+        "guardian_name": "M. D. N. P. Sumanarathna",
+        "guardian_phone": "0779869869",
+        "room_number": "2nd Floor Master Bed Room",
+        "monthly_fee": "14000.00",
+    },
+    {
+        "full_name": "Isuri Dhananjana Ranaweera",
+        "phone": "0716539207",
+        "nic": "200376010898",
+        "date_of_birth": "2003-09-16",
+        "address": "Welangahawaththa, Welivita",
+        "faculty": "FMSH",
+        "guardian_name": "Kumaradasa Ranaweera",
+        "guardian_phone": "0702607554",
+        "room_number": "Room 6",
+        "monthly_fee": "14000.00",
+    },
+    {
+        "full_name": "Methmi Hansini Karunanayaka",
+        "phone": "0707800755",
+        "nic": "200266902550",
+        "date_of_birth": "2002-06-17",
+        "address": "No.8/A Pallimulla, Matara",
+        "faculty": "Faculty of law",
+        "guardian_name": "Tilak Karunanayaka",
+        "guardian_phone": "0714773653",
+        "room_number": "Room 2",
+        "monthly_fee": "15000.00",
+    },
+    {
+        "full_name": "P. G. Nipuni Imasha",
+        "phone": "0763660049",
+        "nic": "200351201825",
+        "date_of_birth": "2003-01-12",
+        "address": "Mayura Hardware, Kahaduwa",
+        "faculty": "Engineering",
+        "guardian_name": "P. G.M.P.Kumara",
+        "guardian_phone": "0718181456",
+        "room_number": "Room 4",
+        "monthly_fee": "15500.00",
+    },
+    {
+        "full_name": "Bothalage Dona Isakya Malsandie Darshanapriya",
+        "phone": "0771371410",
+        "nic": "200581101843",
+        "date_of_birth": "2005-11-06",
+        "address": "5/A/1, Temple Road, Kalutara",
+        "faculty": "Medicine",
+        "guardian_name": "Ayesh Darshanapriya",
+        "guardian_phone": "0773419914",
+        "room_number": "Room 1",
+        "monthly_fee": "27000.00",
+    },
+    {
+        "full_name": "Landage Bhashini Dewindi",
+        "phone": "0765702665",
+        "nic": "200473703846",
+        "date_of_birth": "2004-08-24",
+        "address": "No 22, Sobanillagama, Ratnapura",
+        "faculty": "FDDS (Strategic Studies)",
+        "guardian_name": "Landage Bandula",
+        "guardian_phone": "0765702665",
+        "room_number": "2nd Floor",
+        "monthly_fee": "14500.00",
+    },
+    {
+        "full_name": "Yamuditha Heshani Pathirana",
+        "phone": "0718992635",
+        "nic": "200358400961",
+        "date_of_birth": "2003-03-24",
+        "address": "Yataththewala, Yakvila",
+        "faculty": "Engineering",
+        "guardian_name": "WPS Pathirana",
+        "guardian_phone": "0718046323",
+        "room_number": "1st Floor",
+        "monthly_fee": "15500.00",
+    },
+    {
+        "full_name": "Ashanie Sulakkhana Bandara",
+        "phone": "+64224322709",
+        "nic": "200578805853",
+        "date_of_birth": "2005-10-14",
+        "address": "Mahasen paya, 1st lane, Hingurakgoda",
+        "faculty": "Medicine",
+        "guardian_name": "Asanga",
+        "guardian_phone": "+64223412441",
+        "room_number": "Room 3",
+        "monthly_fee": "22000.00",
+    },
+    {
+        "full_name": "Tharushi Ramodya Ranaweera",
+        "phone": "0703116438",
+        "nic": "200154502582",
+        "date_of_birth": "2001-02-14",
+        "address": "No 141, Kapugama, Agalawatta",
+        "faculty": "Engineering",
+        "guardian_name": "Priyantha Ranaweera",
+        "guardian_phone": "0761373080",
+        "room_number": "3rd Floor",
+        "monthly_fee": "14500.00",
+    },
+    {
+        "full_name": "M.W.Dehemi Nethmini Bandara",
+        "phone": "0774965908",
+        "nic": "200385511645",
+        "date_of_birth": "2003-12-20",
+        "address": "Kandy road ,Thirappane",
+        "faculty": "FMSH, Logistics management",
+        "guardian_name": "M.W.S.Bandara",
+        "guardian_phone": "0778292608",
+        "room_number": "Room 6",
+        "monthly_fee": "14000.00",
+    },
+    {
+        "full_name": "Kirinda Liyanarachchige Thashmi Arundi Liyanarachchi",
+        "phone": "0769364130",
+        "nic": "200459813526",
+        "date_of_birth": "2004-04-07",
+        "address": "Lumbini, Pinnaduwa, Walahanduwa",
+        "faculty": "FDSS / IR",
+        "guardian_name": "K.L.B.C.Liyanarachchi",
+        "guardian_phone": "0772797059",
+        "room_number": "2nd Floor Room 1",
+        "monthly_fee": "14500.00",
+    },
+    {
+        "full_name": "Methuli Anujana Ranasinghe",
+        "phone": "0771445996",
+        "nic": "200578804951",
+        "date_of_birth": "2005-08-25",
+        "address": "Kurunegala",
+        "faculty": "Faculty of Medicine",
+        "guardian_name": "Sampath Janaka Ranasinghe",
+        "guardian_phone": "00965 51482285",
+        "room_number": "Ground Floor Room 1",
+        "monthly_fee": "30000.00",
+    },
+    {
+        "full_name": "Siriwardena Mudalige Dona Ishara Sewmini",
+        "phone": "0781892027",
+        "nic": "200272503682",
+        "date_of_birth": "2002-08-12",
+        "address": "302, Makandura road, Badalgama",
+        "faculty": "Law",
+        "guardian_name": "S.M.D.R.D.Cristopher Appuhamy",
+        "guardian_phone": "0777986042",
+        "room_number": "Ground Floor Room 3",
+        "monthly_fee": "14000.00",
+    },
+]
+
+def import_form_residents(db) -> None:
+    with db.cursor() as cur:
+        for r in FORM_ROOMS:
+            cur.execute(
+                """
+                INSERT INTO rooms (room_number, floor, capacity, notes)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (room_number) DO NOTHING
+                """,
+                (r["room_number"], r["floor"], r["capacity"], r["notes"]),
+            )
+
+        cur.execute("SELECT id, room_number FROM rooms")
+        room_map = {row["room_number"]: row["id"] for row in cur.fetchall()}
+
+        for r in FORM_RESIDENTS:
+            nic = r["nic"].strip()
+            full_name = r["full_name"].strip()
+            room_id = room_map.get(r["room_number"])
+
+            cur.execute(
+                """
+                SELECT id, room_id FROM residents
+                WHERE (nic IS NOT NULL AND nic != '' AND nic = %s)
+                   OR LOWER(full_name) = LOWER(%s)
+                """,
+                (nic, full_name),
+            )
+            existing = cur.fetchone()
+
+            if existing:
+                assigned_room_id = existing["room_id"] or room_id
+                cur.execute(
+                    """
+                    UPDATE residents
+                    SET full_name = %s,
+                        phone = %s,
+                        nic = %s,
+                        date_of_birth = %s,
+                        address = %s,
+                        faculty = %s,
+                        guardian_name = %s,
+                        guardian_phone = %s,
+                        room_id = %s,
+                        monthly_fee = %s,
+                        status = 'Active'
+                    WHERE id = %s
+                    """,
+                    (
+                        full_name,
+                        r["phone"],
+                        nic,
+                        r["date_of_birth"],
+                        r["address"],
+                        r["faculty"],
+                        r["guardian_name"],
+                        r["guardian_phone"],
+                        assigned_room_id,
+                        r["monthly_fee"],
+                        existing["id"],
+                    ),
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO residents (
+                        full_name, phone, nic, date_of_birth, address, faculty,
+                        guardian_name, guardian_phone, room_id, monthly_fee, status
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'Active')
+                    """,
+                    (
+                        full_name,
+                        r["phone"],
+                        nic,
+                        r["date_of_birth"],
+                        r["address"],
+                        r["faculty"],
+                        r["guardian_name"],
+                        r["guardian_phone"],
+                        room_id,
+                        r["monthly_fee"],
+                    ),
+                )
+
+        # Default amount_due and balance to 0 for fees without any payments
+        cur.execute(
+            """
+            UPDATE monthly_fees
+            SET amount_due = 0, balance = 0, status = 'Unpaid'
+            WHERE amount_paid = 0
+              AND id NOT IN (SELECT DISTINCT monthly_fee_id FROM payments)
+            """
+        )
+
+    db.commit()
+
 def seed_data(db) -> None:
-    existing = db.execute("SELECT COUNT(*) AS count FROM residents").fetchone()["count"]
-    if existing:
-        return
-
-    rooms = [
-        ("A101", "1", 2, "Window side room"),
-        ("A102", "1", 3, "Near study area"),
-        ("B201", "2", 2, "Attached bathroom"),
-        ("B202", "2", 4, "Shared room"),
-    ]
-
-    with db.cursor() as cur:
-        cur.executemany(
-            """
-            INSERT INTO rooms (room_number, floor, capacity, notes)
-            VALUES (%s, %s, %s, %s)
-            ON CONFLICT (room_number) DO NOTHING
-            """,
-            rooms,
-        )
-
-    db.commit()
-
-    room_ids = {
-        row["room_number"]: row["id"]
-        for row in db.execute("SELECT id, room_number FROM rooms").fetchall()
-    }
-
-    residents = [
-        ("Amani Perera", "0771234567", "amani@example.com", "Mrs. Perera", "0711002003", room_ids["A101"], "35000", "Active"),
-        ("Nuwan Silva", "0762223344", "nuwan@example.com", "Mr. Silva", "0712223344", room_ids["A102"], "32000", "Active"),
-        ("Kavindi Fernando", "0755551188", "kavindi@example.com", "Mr. Fernando", "0705551188", room_ids["B201"], "38000", "Active"),
-        ("Rashid Khan", "0748889900", "rashid@example.com", "Mrs. Khan", "0728889900", room_ids["B202"], "30000", "Active"),
-    ]
-
-    with db.cursor() as cur:
-        cur.executemany(
-            """
-            INSERT INTO residents
-                (full_name, phone, email, guardian_name, guardian_phone, room_id, monthly_fee, status)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            residents,
-        )
-
-    db.commit()
+    import_form_residents(db)
 
 def ensure_monthly_fees(month: str) -> None:
+    ensure_monthly_fees_db(g.db, month)
 
-    residents = g.db.execute("SELECT * FROM residents WHERE status = 'Active'").fetchall()
-
-    due_day = 10
-
-    due_date = f"{month}-{due_day:02d}"
-
-    for resident in residents:
-
-        g.db.execute(
-
-            """
-
-            INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance)
-
-            VALUES (%s, %s, %s, %s, %s)
-
-            ON CONFLICT (resident_id, month) DO NOTHING
-
-            """,
-
-            (resident["id"], month, due_date, resident["monthly_fee"], resident["monthly_fee"]),
-
-        )
-
-    g.db.commit()
+def ensure_monthly_fees_db(db, month: str) -> None:
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM residents WHERE status = 'Active'")
+        residents = cur.fetchall()
+        due_day = 10
+        due_date = f"{month}-{due_day:02d}"
+        for resident in residents:
+            cur.execute(
+                """
+                INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                VALUES (%s, %s, %s, %s, %s, 'Unpaid')
+                ON CONFLICT (resident_id, month) DO NOTHING
+                """,
+                (resident["id"], month, due_date, "0", "0"),
+            )
+        db.commit()
 
 def update_fee_status(monthly_fee_id: int) -> None:
+    update_fee_status_db(g.db, monthly_fee_id)
 
-    fee = get_one("SELECT * FROM monthly_fees WHERE id = %s", (monthly_fee_id,))
+def update_fee_status_db(db, monthly_fee_id: int) -> None:
+    with db.cursor() as cur:
+        cur.execute("SELECT * FROM monthly_fees WHERE id = %s", (monthly_fee_id,))
+        fee = cur.fetchone()
+        if not fee:
+            return
+        cur.execute(
+            "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE monthly_fee_id = %s AND is_reversed = 0",
+            (monthly_fee_id,),
+        )
+        paid = cur.fetchone()["total"]
+        due = Decimal(str(fee["amount_due"]))
+        paid_decimal = Decimal(str(paid))
+        balance = max(Decimal("0"), due - paid_decimal)
 
-    paid = g.db.execute(
+        if due == Decimal("0") and paid_decimal == Decimal("0"):
+            status = "Unpaid"
+        elif paid_decimal >= due and (due > Decimal("0") or paid_decimal > Decimal("0")):
+            status = "Paid"
+        elif paid_decimal > 0:
+            status = "Part Paid"
+        elif as_date(fee["due_date"]) < date.today():
+            status = "Overdue"
+        else:
+            status = "Unpaid"
 
-        "SELECT COALESCE(SUM(amount), 0) AS total FROM payments WHERE monthly_fee_id = %s AND is_reversed = 0",
-
-        (monthly_fee_id,),
-
-    ).fetchone()["total"]
-
-    due = Decimal(str(fee["amount_due"]))
-
-    paid_decimal = Decimal(str(paid))
-
-    balance = max(Decimal("0"), due - paid_decimal)
-
-    if paid_decimal >= due:
-
-        status = "Paid"
-
-    elif paid_decimal > 0:
-
-        status = "Part Paid"
-
-    elif as_date(fee["due_date"]) < date.today():
-
-        status = "Overdue"
-
-    else:
-
-        status = "Unpaid"
-
-    g.db.execute(
-
-        "UPDATE monthly_fees SET amount_paid = %s, balance = %s, status = %s WHERE id = %s",
-
-        (str(paid_decimal), str(balance), status, monthly_fee_id),
-
-    )
-
-    g.db.commit()
+        cur.execute(
+            "UPDATE monthly_fees SET amount_paid = %s, balance = %s, status = %s WHERE id = %s",
+            (str(paid_decimal), str(balance), status, monthly_fee_id),
+        )
+    db.commit()
 
 def refresh_all_statuses(month: str) -> None:
+    refresh_all_statuses_db(g.db, month)
 
-    for row in g.db.execute("SELECT id FROM monthly_fees WHERE month = %s", (month,)).fetchall():
-
-        update_fee_status(row["id"])
+def refresh_all_statuses_db(db, month: str) -> None:
+    with db.cursor() as cur:
+        cur.execute("SELECT id FROM monthly_fees WHERE month = %s", (month,))
+        rows = cur.fetchall()
+        for row in rows:
+            update_fee_status_db(db, row["id"])
 
 def fee_rows(month: str):
 
