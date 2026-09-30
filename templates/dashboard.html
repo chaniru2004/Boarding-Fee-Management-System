@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Month {{ month }}</p>
+    <h2>Dashboard</h2>
+  </div>
+  <form class="inline-form" method="get">
+    <input type="month" name="month" value="{{ month }}">
+    <button>View</button>
+  </form>
+</section>
+
+<section class="stats">
+  <article><span>Total Fees</span><strong>{{ totals.count }}</strong></article>
+  <article><span>Amount Due</span><strong>Rs. {{ money(totals.due) }}</strong></article>
+  <article><span>Collected</span><strong>Rs. {{ money(totals.paid) }}</strong></article>
+  <article><span>Balance</span><strong>Rs. {{ money(totals.balance) }}</strong></article>
+</section>
+
+<section class="grid two">
+  <div>
+    <h3>Status</h3>
+    <table>
+      <tbody>
+        {% for label in ["Paid", "Part Paid", "Unpaid", "Overdue"] %}
+        <tr><th>{{ label }}</th><td>{{ statuses.get(label, 0) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div>
+    <h3>Collection By Method</h3>
+    <table>
+      <tbody>
+        {% for row in breakdown %}
+        <tr><th>{{ row.payment_method }}</th><td>Rs. {{ money(row.total) }}</td><td>{{ row.count }}</td></tr>
+        {% else %}
+        <tr><td>No payments yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<h3>Monthly Fee Position</h3>
+<table>
+  <thead><tr><th>Resident</th><th>Room</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for fee in fees %}
+    <tr>
+      <td>{{ fee.full_name }}</td><td>{{ fee.room_number or "-" }}</td>
+      <td>Rs. {{ money(fee.amount_due) }}</td><td>Rs. {{ money(fee.amount_paid) }}</td>
+      <td>Rs. {{ money(fee.balance) }}</td><td><span class="badge">{{ fee.status }}</span></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<h3>Recent Payments</h3>
+<table>
+  <thead><tr><th>Receipt</th><th>Resident</th><th>Amount</th><th>Method</th><th>Date</th></tr></thead>
+  <tbody>
+    {% for payment in recent_payments %}
+    <tr>
+      <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}">{{ payment.receipt_number }}</a></td>
+      <td>{{ payment.full_name }}</td><td>Rs. {{ money(payment.amount) }}</td>
+      <td>{{ payment.payment_method }}</td><td>{{ payment.payment_date }}</td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No payments recorded yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

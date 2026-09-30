@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><div><p class="eyebrow">Edit Payment</p><h2>{{ payment.receipt_number }}</h2></div></section>
+<form class="panel" method="post">
+  <div class="form-grid">
+    <input name="amount" type="number" step="0.01" value="{{ payment.amount }}" required>
+    <select name="payment_method">{% for method in payment_methods %}<option {{ 'selected' if payment.payment_method == method else '' }}>{{ method }}</option>{% endfor %}</select>
+    <input name="bank_name" value="{{ payment.bank_name or '' }}" placeholder="Bank name">
+    <input name="transaction_reference" value="{{ payment.transaction_reference or '' }}" placeholder="Transaction/reference">
+    <input name="payment_date" type="date" value="{{ payment.payment_date }}">
+    <input name="notes" value="{{ payment.notes or '' }}" placeholder="Notes">
+  </div>
+  <button>Update Payment</button>
+</form>
+<form class="danger-panel" method="post" action="{{ url_for('reverse_payment', payment_id=payment.id) }}">
+  <input name="reason" placeholder="Reason for reversal">
+  <button>Reverse Payment</button>
+</form>
+{% endblock %}

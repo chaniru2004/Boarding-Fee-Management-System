@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><div><p class="eyebrow">Rooms</p><h2>Room Register</h2></div></section>
+<form class="panel" method="post">
+  <div class="form-grid">
+    <input name="room_number" placeholder="Room number" required>
+    <input name="floor" placeholder="Floor">
+    <input name="capacity" type="number" min="1" value="1">
+    <input name="notes" placeholder="Notes">
+  </div>
+  <button>Save Room</button>
+</form>
+<table>
+  <thead><tr><th>Room</th><th>Floor</th><th>Capacity</th><th>Occupied</th><th>Notes</th></tr></thead>
+  <tbody>{% for room in rooms %}<tr><td>{{ room.room_number }}</td><td>{{ room.floor }}</td><td>{{ room.capacity }}</td><td>{{ room.occupied }}</td><td>{{ room.notes }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endblock %}

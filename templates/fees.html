@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div><p class="eyebrow">Monthly</p><h2>Fees</h2></div>
+  <form class="inline-form" method="get"><input type="month" name="month" value="{{ month }}"><button>View</button></form>
+</section>
+<form method="post">
+  <input type="hidden" name="month" value="{{ month }}">
+  <table>
+    <thead><tr><th>Resident</th><th>Room</th><th>Due Date</th><th>Amount Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for fee in fees %}
+      <tr>
+        <td>{{ fee.full_name }}</td><td>{{ fee.room_number or "-" }}</td>
+        <td><input type="date" name="due_date_{{ fee.id }}" value="{{ fee.due_date }}"></td>
+        <td><input type="number" step="0.01" name="amount_due_{{ fee.id }}" value="{{ fee.amount_due }}"></td>
+        <td>Rs. {{ money(fee.amount_paid) }}</td><td>Rs. {{ money(fee.balance) }}</td><td>{{ fee.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <button>Save Fees</button>
+</form>
+{% endblock %}

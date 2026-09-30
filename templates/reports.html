@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div><p class="eyebrow">Reports</p><h2>Monthly Report</h2></div>
+  <form class="inline-form" method="get"><input type="month" name="month" value="{{ month }}"><button>View</button></form>
+</section>
+<p><a class="button-link" href="{{ url_for('download_database') }}">Download CSV Backup</a></p>
+<section class="grid two">
+  <div>
+    <h3>Collection By Method</h3>
+    <table><tbody>{% for row in breakdown %}<tr><th>{{ row.payment_method }}</th><td>Rs. {{ money(row.total) }}</td><td>{{ row.count }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+  <div>
+    <h3>Payments</h3>
+    <table><tbody>{% for payment in payments %}<tr><td>{{ payment.receipt_number }}</td><td>{{ payment.full_name }}</td><td>Rs. {{ money(payment.amount) }}</td></tr>{% endfor %}</tbody></table>
+  </div>
+</section>
+<h3>Fee Balances</h3>
+<table>
+  <thead><tr><th>Resident</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+  <tbody>{% for fee in fees %}<tr><td>{{ fee.full_name }}</td><td>Rs. {{ money(fee.amount_due) }}</td><td>Rs. {{ money(fee.amount_paid) }}</td><td>Rs. {{ money(fee.balance) }}</td><td>{{ fee.status }}</td></tr>{% endfor %}</tbody>
+</table>
+{% endblock %}

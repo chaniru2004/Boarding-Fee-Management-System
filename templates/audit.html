@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head"><div><p class="eyebrow">History</p><h2>Audit Log</h2></div></section>
+<table>
+  <thead><tr><th>Time</th><th>Action</th><th>Table</th><th>Record</th><th>Before</th><th>After</th></tr></thead>
+  <tbody>
+    {% for audit in audits %}
+    <tr><td>{{ audit.created_at }}</td><td>{{ audit.action }}</td><td>{{ audit.table_name }}</td><td>{{ audit.record_key }}</td><td>{{ audit.before_value }}</td><td>{{ audit.after_value }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

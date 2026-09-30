@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="receipt">
+  <p class="eyebrow">Receipt</p>
+  <h2>{{ payment.receipt_number }}</h2>
+  <dl>
+    <dt>Resident</dt><dd>{{ payment.full_name }}</dd>
+    <dt>Room</dt><dd>{{ payment.room_number or "-" }}</dd>
+    <dt>Month</dt><dd>{{ payment.month }}</dd>
+    <dt>Amount</dt><dd>Rs. {{ money(payment.amount) }}</dd>
+    <dt>Method</dt><dd>{{ payment.payment_method }}</dd>
+    <dt>Reference</dt><dd>{{ payment.transaction_reference or "-" }}</dd>
+    <dt>Payment Date</dt><dd>{{ payment.payment_date }}</dd>
+    <dt>Balance After Payment</dt><dd>Rs. {{ money(payment.balance) }}</dd>
+  </dl>
+  <button onclick="window.print()">Print Receipt</button>
+</section>
+{% endblock %}
