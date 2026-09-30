@@ -5,12 +5,34 @@
   <form class="inline-form" method="get"><input type="month" name="month" value="{{ month }}"><button>View</button></form>
 </section>
 <table>
-  <thead><tr><th>Resident</th><th>Room</th><th>Phone</th><th>Email</th><th>Balance</th><th>Status</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Resident</th>
+      <th>Room</th>
+      <th>Phone</th>
+      <th>Email</th>
+      <th>Balance</th>
+      <th>Status</th>
+      <th>WhatsApp Notice</th>
+    </tr>
+  </thead>
   <tbody>
     {% for row in reminders %}
-    <tr><td>{{ row.full_name }}</td><td>{{ row.room_number or "-" }}</td><td>{{ row.phone }}</td><td>{{ row.email }}</td><td>Rs. {{ money(row.balance) }}</td><td>{{ row.status }}</td></tr>
+    <tr>
+      <td>{{ row.full_name }}</td>
+      <td>{{ row.room_number or "-" }}</td>
+      <td>{{ row.phone or "-" }}</td>
+      <td>{{ row.email or "-" }}</td>
+      <td>Rs. {{ money(row.balance) }}</td>
+      <td><span class="badge">{{ row.status }}</span></td>
+      <td>
+        <a href="{{ row.whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="whatsapp-btn" title="Open WhatsApp with pre-filled notice">
+          Send WhatsApp Notice
+        </a>
+      </td>
+    </tr>
     {% else %}
-    <tr><td colspan="6">No unpaid reminders for this month.</td></tr>
+    <tr><td colspan="7">No unpaid reminders for this month.</td></tr>
     {% endfor %}
   </tbody>
 </table>

@@ -22,3 +22,10 @@ export DATABASE_URL="your-neon-postgres-url"
 python app.py
 ```
 
+## Database Tools & Features
+
+- **Remove Demo Data**: Run `python clean_demo_data.py` (or `python clean_demo_data.py '<postgresql://...>'`) to remove demo residents and rooms from PostgreSQL.
+- **Safe Resident Deletion**: Delete residents via the **Delete** button on the Residents page or Edit Resident page without PostgreSQL foreign-key constraint errors.
+- **WhatsApp Payment Reminders**: On the **Reminders** page, click **Send WhatsApp Notice** beside any resident to open WhatsApp with a pre-filled reminder message.
+
+

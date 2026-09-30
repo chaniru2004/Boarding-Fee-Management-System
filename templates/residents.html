@@ -15,14 +15,33 @@
   <button>Save Resident</button>
 </form>
 <table>
-  <thead><tr><th>Name</th><th>Room</th><th>Phone</th><th>Monthly Fee</th><th>Status</th><th></th></tr></thead>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Room</th>
+      <th>Phone</th>
+      <th>Monthly Fee</th>
+      <th>Status</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
   <tbody>
     {% for resident in residents %}
     <tr>
-      <td>{{ resident.full_name }}</td><td>{{ resident.room_number or "-" }}</td><td>{{ resident.phone }}</td>
-      <td>Rs. {{ money(resident.monthly_fee) }}</td><td>{{ resident.status }}</td>
-      <td><a href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a></td>
+      <td>{{ resident.full_name }}</td>
+      <td>{{ resident.room_number or "-" }}</td>
+      <td>{{ resident.phone or "-" }}</td>
+      <td>Rs. {{ money(resident.monthly_fee) }}</td>
+      <td><span class="badge">{{ resident.status }}</span></td>
+      <td class="actions-cell">
+        <a class="button-link button-sm" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
+          <button type="submit" class="button-danger button-sm">Delete</button>
+        </form>
+      </td>
     </tr>
+    {% else %}
+    <tr><td colspan="6">No residents recorded yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

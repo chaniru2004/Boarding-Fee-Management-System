@@ -19,4 +19,15 @@
   </div>
   <button>Update Resident</button>
 </form>
+
+<section class="danger-panel" style="margin-top: 24px;">
+  <p class="eyebrow" style="color: var(--warn);">Danger Zone</p>
+  <h3>Delete Resident</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    Safely delete this resident. All associated monthly fee records and payment history will also be removed without database errors.
+  </p>
+  <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
+    <button type="submit" class="button-danger">Delete Resident</button>
+  </form>
+</section>
 {% endblock %}

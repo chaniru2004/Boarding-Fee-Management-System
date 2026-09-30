@@ -98,6 +98,39 @@ button, .button-link {
   cursor: pointer;
 }
 .danger-panel button { background: var(--warn); }
+.button-danger {
+  background: var(--warn);
+  color: white;
+}
+.button-danger:hover {
+  background: #911c13;
+}
+.button-sm {
+  padding: 6px 10px;
+  font-size: 13px;
+}
+.actions-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.whatsapp-btn {
+  background: #25d366;
+  color: #ffffff;
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 6px;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.whatsapp-btn:hover {
+  background: #1ebc59;
+  color: #ffffff;
+}
 .form-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(150px, 1fr));
