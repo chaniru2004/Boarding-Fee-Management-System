@@ -7,8 +7,14 @@
   </div>
   <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
     <form class="inline-form" method="get" style="display: flex; gap: 8px; align-items: center; margin: 0;">
-      <input type="month" name="month" value="{{ month if month != 'all' else current_month }}">
-      <button type="submit">Filter Month</button>
+      <label for="monthFilter" style="font-size: 13px; font-weight: 600; color: var(--muted); margin: 0;">Month:</label>
+      <select id="monthFilter" name="month" onchange="this.form.submit()" style="height: 38px; min-width: 170px; font-weight: 500;">
+        <option value="all" {% if month == 'all' %}selected{% endif %}>All Months</option>
+        {% for opt in month_options %}
+        <option value="{{ opt.value }}" {% if month == opt.value %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+      </select>
+      <button type="submit">Filter</button>
     </form>
     {% if month != 'all' %}
     <a class="button-link button-outline" href="{{ url_for('payments', month='all') }}">Show All Months</a>
@@ -33,7 +39,11 @@
     </div>
     <div>
       <label class="field-label">Payment Month</label>
-      <input name="payment_month" type="month" value="{{ month if month != 'all' else current_month }}" required>
+      <select name="payment_month" required>
+        {% for opt in month_options %}
+        <option value="{{ opt.value }}" {% if (month != 'all' and month == opt.value) or (month == 'all' and opt.value == current_month) %}selected{% endif %}>{{ opt.label }}</option>
+        {% endfor %}
+      </select>
     </div>
     <div>
       <label class="field-label">Amount (Rs.)</label>
@@ -61,20 +71,26 @@
     </div>
     <div style="grid-column: 1 / -1;">
       <label class="field-label">Additional Notes</label>
-      <input name="notes" placeholder="Optional notes / remarks (e.g. advance, partial payment, etc.)">
+      <input name="notes" placeholder="Optional notes / remarks (e.g. handed over, partial payment, etc.)">
     </div>
   </div>
   <button type="submit">Record Payment</button>
 </form>
 
-<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 28px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
-  <h3 style="margin: 0;">Payment History</h3>
-  <span style="font-size: 13px; color: var(--muted);">
-    Filtered by: <strong>{{ 'All Months' if month == 'all' else month }}</strong> ({{ payments|length }} payment{{ 's' if payments|length != 1 else '' }})
-  </span>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 28px; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
+  <div>
+    <h3 style="margin: 0;">Payment History</h3>
+    <span style="font-size: 13px; color: var(--muted);">
+      Filtered by: <strong>{{ 'All Months' if month == 'all' else format_month(month) }}</strong> ({{ payments|length }} payment{{ 's' if payments|length != 1 else '' }})
+    </span>
+  </div>
+  <div>
+    <input type="text" id="paymentSearch" placeholder="Search resident, receipt, month..." onkeyup="filterPaymentsTable()" style="height: 36px; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); font-size: 13px; width: 250px; max-width: 100%;">
+  </div>
 </div>
+
 <div class="table-container">
-  <table>
+  <table id="paymentsTable">
     <thead>
       <tr>
         <th>Receipt</th>
@@ -93,7 +109,7 @@
       <tr>
         <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
         <td>{{ payment.full_name }}</td>
-        <td><span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ payment.payment_month or '-' }}</span></td>
+        <td><span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ format_month(payment.payment_month or payment.month) }}</span></td>
         <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
         <td><span class="badge">{{ payment.payment_method }}</span></td>
         <td>{{ payment.payment_date }}</td>
@@ -104,9 +120,20 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded {% if month != 'all' %}for {{ month }}{% endif %}.</td></tr>
+      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded {% if month != 'all' %}for {{ format_month(month) }}{% endif %}.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+function filterPaymentsTable() {
+  const q = document.getElementById('paymentSearch').value.toLowerCase();
+  const rows = document.querySelectorAll('#paymentsTable tbody tr');
+  rows.forEach(tr => {
+    const text = tr.innerText.toLowerCase();
+    tr.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}

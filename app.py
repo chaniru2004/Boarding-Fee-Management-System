@@ -78,6 +78,12 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             "payment_methods": PAYMENT_METHODS,
 
+            "format_month": format_month_label,
+
+            "month_options": get_month_options(),
+
+            "current_month": current_month(),
+
         }
 
     @app.route("/")
@@ -844,6 +850,13 @@ def create_app(test_config: dict | None = None) -> Flask:
                 seed_data(db)
         print("Demo data seeded.")
 
+    @app.cli.command("import-payments")
+    def import_payments_command():
+        with app.app_context():
+            with get_db() as db:
+                import_form_payments(db)
+        print("Real payments imported successfully into PostgreSQL.")
+
     with app.app_context():
         if app.config.get("DATABASE_URL"):
             init_db()
@@ -1019,6 +1032,7 @@ def init_db() -> None:
 
         cleanup_demo_data(db)
         import_form_residents(db)
+        import_form_payments(db)
         ensure_monthly_fees_db(db, current_month())
 
 def cleanup_demo_data(db) -> None:
@@ -1367,8 +1381,269 @@ def import_form_residents(db) -> None:
 
     db.commit()
 
+FORM_PAYMENTS = [
+    {
+        "resident_name": "Ranthotuwila Patabendige Thesanya Sanugi Rathnayaka",
+        "payment_month": "2026-06",
+        "payment_date": "2026-07-08",
+        "amount": "14000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-17 12:16:40",
+    },
+    {
+        "resident_name": "Kirinda Liyanarachchige Thashmi Arundi Liyanarachchi",
+        "payment_month": "2026-06",
+        "payment_date": "2026-07-14",
+        "amount": "14000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-17 13:53:02",
+    },
+    {
+        "resident_name": "Algewaththage Sudeepa Lakshani",
+        "payment_month": "2026-07",
+        "payment_date": "2026-07-18",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-18 15:33:40",
+    },
+    {
+        "resident_name": "P. G. Nipuni Imasha",
+        "payment_month": "2026-07",
+        "payment_date": "2026-07-19",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-19 17:15:54",
+    },
+    {
+        "resident_name": "Landage Bhashini Dewindi",
+        "payment_month": "2026-06",
+        "payment_date": "2026-07-19",
+        "amount": "14500.00",
+        "payment_method": "Cash",
+        "notes": "Handed over",
+        "created_at": "2026-07-20 22:31:09",
+    },
+    {
+        "resident_name": "Ashanie Sulakkhana Bandara",
+        "payment_month": "2026-07",
+        "payment_date": "2026-07-20",
+        "amount": "22000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-26 05:41:39",
+    },
+    {
+        "resident_name": "Methmi Hansini Karunanayaka",
+        "payment_month": "2026-07",
+        "payment_date": "2026-07-28",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-07-28 00:04:41",
+    },
+    {
+        "resident_name": "Yamuditha Heshani Pathirana",
+        "payment_month": "2026-07",
+        "payment_date": "2026-08-02",
+        "amount": "15500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-02 23:28:33",
+    },
+    {
+        "resident_name": "Tharushi Ramodya Ranaweera",
+        "payment_month": "2026-07",
+        "payment_date": "2026-08-05",
+        "amount": "14500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-05 09:07:03",
+    },
+    {
+        "resident_name": "Kirinda Liyanarachchige Thashmi Arundi Liyanarachchi",
+        "payment_month": "2026-07",
+        "payment_date": "2026-08-10",
+        "amount": "14000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-10 22:55:47",
+    },
+    {
+        "resident_name": "Landage Bhashini Dewindi",
+        "payment_month": "2026-07",
+        "payment_date": "2026-08-11",
+        "amount": "14500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-13 09:35:55",
+    },
+    {
+        "resident_name": "P. G. Nipuni Imasha",
+        "payment_month": "2026-08",
+        "payment_date": "2026-08-13",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-13 19:48:21",
+    },
+    {
+        "resident_name": "Algewaththage Sudeepa Lakshani",
+        "payment_month": "2026-08",
+        "payment_date": "2026-08-20",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-21 13:40:22",
+    },
+    {
+        "resident_name": "Methmi Hansini Karunanayaka",
+        "payment_month": "2026-08",
+        "payment_date": "2026-08-25",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-27 22:35:41",
+    },
+    {
+        "resident_name": "Yamuditha Heshani Pathirana",
+        "payment_month": "2026-08",
+        "payment_date": "2026-08-31",
+        "amount": "15500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-31 11:43:02",
+    },
+    {
+        "resident_name": "Tharushi Ramodya Ranaweera",
+        "payment_month": "2026-08",
+        "payment_date": "2026-09-06",
+        "amount": "14500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-09-06 21:54:10",
+    },
+    {
+        "resident_name": "P. G. Nipuni Imasha",
+        "payment_month": "2026-09",
+        "payment_date": "2026-09-15",
+        "amount": "15500.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-09-15 13:54:32",
+    },
+    {
+        "resident_name": "Methmi Hansini Karunanayaka",
+        "payment_month": "2026-09",
+        "payment_date": "2026-09-21",
+        "amount": "15000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-09-21 22:13:10",
+    },
+    {
+        "resident_name": "Ashanie Sulakkhana Bandara",
+        "payment_month": "2026-08",
+        "payment_date": "2026-08-20",
+        "amount": "22000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "Akki, I couldn't get the transaction receipt pdf from bank",
+        "created_at": "2026-09-24 13:39:16",
+    },
+    {
+        "resident_name": "Ashanie Sulakkhana Bandara",
+        "payment_month": "2026-09",
+        "payment_date": "2026-09-20",
+        "amount": "22000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-09-24 13:42:11",
+    },
+    {
+        "resident_name": "Diduli Sumanarathna",
+        "payment_month": "2026-07",
+        "payment_date": "2026-08-04",
+        "amount": "14000.00",
+        "payment_method": "Online/Mobile Transfer",
+        "notes": "",
+        "created_at": "2026-08-04 12:00:00",
+    },
+]
+
+def import_form_payments(db) -> None:
+    with db.cursor() as cur:
+        for p in FORM_PAYMENTS:
+            canonical_name = p["resident_name"]
+            cur.execute("SELECT id, monthly_fee FROM residents WHERE full_name = %s", (canonical_name,))
+            res = cur.fetchone()
+            if not res:
+                continue
+            res_id = res["id"]
+            pay_month = p["payment_month"]
+            amount = Decimal(str(p["amount"]))
+            pay_date = p["payment_date"]
+
+            due_date = f"{pay_month}-10"
+            cur.execute(
+                """
+                INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, amount_paid, balance, status)
+                VALUES (%s, %s, %s, %s, 0, %s, 'Unpaid')
+                ON CONFLICT (resident_id, month) DO UPDATE
+                SET amount_due = CASE WHEN monthly_fees.amount_due = 0 THEN EXCLUDED.amount_due ELSE monthly_fees.amount_due END
+                RETURNING id
+                """,
+                (res_id, pay_month, due_date, str(amount), str(amount)),
+            )
+            fee_id = cur.fetchone()["id"]
+
+            cur.execute(
+                """
+                SELECT id FROM payments
+                WHERE monthly_fee_id = %s
+                  AND amount = %s
+                  AND payment_date = %s
+                """,
+                (fee_id, amount, pay_date),
+            )
+            if cur.fetchone():
+                update_fee_status_db(db, fee_id)
+                continue
+
+            prefix = f"RCPT-{pay_month.replace('-', '')}"
+            cur.execute("SELECT COUNT(*) AS count FROM payments WHERE receipt_number LIKE %s", (f"{prefix}%",))
+            count = cur.fetchone()["count"]
+            receipt_number = f"{prefix}-{count + 1:04d}"
+
+            cur.execute(
+                """
+                INSERT INTO payments
+                    (monthly_fee_id, receipt_number, amount, payment_method, bank_name,
+                     transaction_reference, payment_date, payment_month, notes, created_at)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    fee_id,
+                    receipt_number,
+                    amount,
+                    p["payment_method"],
+                    "",
+                    "",
+                    pay_date,
+                    pay_month,
+                    p["notes"],
+                    p["created_at"],
+                ),
+            )
+            db.commit()
+            update_fee_status_db(db, fee_id)
+        db.commit()
+
 def seed_data(db) -> None:
     import_form_residents(db)
+    import_form_payments(db)
 
 def ensure_monthly_fees(month: str) -> None:
     ensure_monthly_fees_db(g.db, month)
@@ -1662,10 +1937,43 @@ def money(value) -> str:
 
 
 def format_month_label(month_str: str) -> str:
+    if not month_str or month_str == "all":
+        return "All Months" if month_str == "all" else "-"
     try:
         return datetime.strptime(month_str, "%Y-%m").strftime("%B %Y")
     except Exception:
         return month_str
+
+
+def get_month_options(selected_month: str = None) -> list[dict]:
+    months_set = {f"2026-{m:02d}" for m in range(1, 13)}
+    if hasattr(g, "db") and g.db:
+        try:
+            cur = g.db.execute(
+                """
+                SELECT DISTINCT month AS m FROM monthly_fees
+                UNION
+                SELECT DISTINCT payment_month AS m FROM payments WHERE payment_month IS NOT NULL
+                """
+            )
+            for r in cur.fetchall():
+                val = r["m"] if "m" in r else r[0]
+                if val and re.match(r"^\d{4}-\d{2}$", val):
+                    months_set.add(val)
+        except Exception:
+            pass
+    if selected_month and selected_month != "all" and re.match(r"^\d{4}-\d{2}$", selected_month):
+        months_set.add(selected_month)
+
+    sorted_months = sorted(list(months_set), reverse=True)
+    options = []
+    for ym in sorted_months:
+        try:
+            label = datetime.strptime(ym, "%Y-%m").strftime("%B %Y")
+        except ValueError:
+            label = ym
+        options.append({"value": ym, "label": label})
+    return options
 
 
 def clean_phone_for_whatsapp(phone: str | None) -> str:
