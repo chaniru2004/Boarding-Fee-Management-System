@@ -48,8 +48,8 @@
       <input name="payment_date" type="date" value="{{ today }}">
     </div>
     <div style="grid-column: 1 / -1;">
-      <label class="field-label">Notes</label>
-      <input name="notes" placeholder="Notes (optional)">
+      <label class="field-label">Payment Month / Notes</label>
+      <input name="notes" placeholder="Enter payment month or notes (e.g. September 2026)">
     </div>
   </div>
   <button type="submit">Record Payment</button>
@@ -62,6 +62,7 @@
       <tr>
         <th>Receipt</th>
         <th>Resident</th>
+        <th>Payment Month</th>
         <th>Amount</th>
         <th>Method</th>
         <th>Date</th>
@@ -74,6 +75,7 @@
       <tr>
         <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
         <td>{{ payment.full_name }}</td>
+        <td><strong>{{ payment.notes or payment.month }}</strong></td>
         <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
         <td><span class="badge">{{ payment.payment_method }}</span></td>
         <td>{{ payment.payment_date }}</td>
@@ -83,7 +85,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="7" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded yet for this month.</td></tr>
+      <tr><td colspan="8" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded yet for this month.</td></tr>
       {% endfor %}
     </tbody>
   </table>

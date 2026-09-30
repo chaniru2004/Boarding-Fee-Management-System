@@ -36,8 +36,8 @@
       <input name="payment_date" type="date" value="{{ payment.payment_date }}">
     </div>
     <div style="grid-column: 1 / -1;">
-      <label class="field-label">Notes</label>
-      <input name="notes" value="{{ payment.notes or '' }}" placeholder="Notes">
+      <label class="field-label">Payment Month / Notes</label>
+      <input name="notes" value="{{ payment.notes or '' }}" placeholder="Payment month / notes (e.g. September 2026)">
     </div>
   </div>
   <button type="submit">Update Payment</button>

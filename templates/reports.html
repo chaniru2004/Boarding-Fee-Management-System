@@ -41,15 +41,17 @@
     <h3>Payments Recorded</h3>
     <div class="table-container" style="margin-bottom: 0;">
       <table>
+        <thead><tr><th>Receipt</th><th>Resident</th><th>Payment Month</th><th>Amount</th></tr></thead>
         <tbody>
           {% for payment in payments %}
           <tr>
             <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
             <td>{{ payment.full_name }}</td>
+            <td>{{ payment.notes or payment.month }}</td>
             <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
           </tr>
           {% else %}
-          <tr><td colspan="3" style="color: var(--muted);">No payments recorded for this month.</td></tr>
+          <tr><td colspan="4" style="color: var(--muted);">No payments recorded for this month.</td></tr>
           {% endfor %}
         </tbody>
       </table>
