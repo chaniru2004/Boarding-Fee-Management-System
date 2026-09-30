@@ -1,35 +1,91 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-head">
-  <div><p class="eyebrow">Receipts</p><h2>Payments</h2></div>
-  <form class="inline-form" method="get"><input type="month" name="month" value="{{ month }}"><button>View</button></form>
+  <div>
+    <p class="eyebrow">Receipts</p>
+    <h2>Payments</h2>
+  </div>
+  <form class="inline-form" method="get">
+    <input type="month" name="month" value="{{ month }}">
+    <button type="submit">View</button>
+  </form>
 </section>
+
 <form class="panel" method="post">
   <input type="hidden" name="month" value="{{ month }}">
+  <h3 style="margin-top: 0; margin-bottom: 16px;">Record New Payment</h3>
   <div class="form-grid">
-    <select name="monthly_fee_id" required>
-      {% for fee in fees %}<option value="{{ fee.id }}">{{ fee.full_name }} - balance Rs. {{ money(fee.balance) }}</option>{% endfor %}
-    </select>
-    <input name="amount" type="number" step="0.01" placeholder="Amount" required>
-    <select name="payment_method">{% for method in payment_methods %}<option>{{ method }}</option>{% endfor %}</select>
-    <input name="bank_name" placeholder="Bank name">
-    <input name="transaction_reference" placeholder="Transaction/reference">
-    <input name="payment_date" type="date" value="{{ today }}">
-    <input name="notes" placeholder="Notes">
+    <div>
+      <label class="field-label">Resident / Fee</label>
+      <select name="monthly_fee_id" required>
+        {% for fee in fees %}
+        <option value="{{ fee.id }}">{{ fee.full_name }} (Balance: Rs. {{ money(fee.balance) }})</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label">Amount (Rs.)</label>
+      <input name="amount" type="number" step="0.01" placeholder="Amount" required>
+    </div>
+    <div>
+      <label class="field-label">Payment Method</label>
+      <select name="payment_method">
+        {% for method in payment_methods %}
+        <option>{{ method }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label">Bank Name</label>
+      <input name="bank_name" placeholder="Bank name (optional)">
+    </div>
+    <div>
+      <label class="field-label">Transaction Reference</label>
+      <input name="transaction_reference" placeholder="Reference # (optional)">
+    </div>
+    <div>
+      <label class="field-label">Payment Date</label>
+      <input name="payment_date" type="date" value="{{ today }}">
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <label class="field-label">Notes</label>
+      <input name="notes" placeholder="Notes (optional)">
+    </div>
   </div>
-  <button>Record Payment</button>
+  <button type="submit">Record Payment</button>
 </form>
-<table>
-  <thead><tr><th>Receipt</th><th>Resident</th><th>Amount</th><th>Method</th><th>Date</th><th>Status</th><th></th></tr></thead>
-  <tbody>
-    {% for payment in payments %}
-    <tr>
-      <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}">{{ payment.receipt_number }}</a></td>
-      <td>{{ payment.full_name }}</td><td>Rs. {{ money(payment.amount) }}</td><td>{{ payment.payment_method }}</td><td>{{ payment.payment_date }}</td>
-      <td>{{ "Reversed" if payment.is_reversed else "Active" }}</td>
-      <td><a href="{{ url_for('edit_payment', payment_id=payment.id) }}">Edit</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+<h3>Payment History</h3>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Receipt</th>
+        <th>Resident</th>
+        <th>Amount</th>
+        <th>Method</th>
+        <th>Date</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for payment in payments %}
+      <tr>
+        <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
+        <td>{{ payment.full_name }}</td>
+        <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
+        <td><span class="badge">{{ payment.payment_method }}</span></td>
+        <td>{{ payment.payment_date }}</td>
+        <td><span class="badge badge-{{ 'reversed' if payment.is_reversed else 'active' }}">{{ "Reversed" if payment.is_reversed else "Active" }}</span></td>
+        <td class="actions-cell">
+          <a class="button-link button-sm" href="{{ url_for('edit_payment', payment_id=payment.id) }}">Edit</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded yet for this month.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

@@ -1,18 +1,39 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="receipt">
-  <p class="eyebrow">Receipt</p>
-  <h2>{{ payment.receipt_number }}</h2>
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Payment Receipt</p>
+    <h2>{{ payment.receipt_number }}</h2>
+  </div>
+  <a class="button-link" href="{{ url_for('payments', month=payment.month) }}">Back to Payments</a>
+</section>
+
+<section class="receipt panel">
+  <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 16px;">
+    <div>
+      <span class="eyebrow">Official Receipt</span>
+      <h3 style="margin: 0; font-size: 20px;">Boarding Fee Payment</h3>
+    </div>
+    <span class="badge badge-active">Confirmed</span>
+  </div>
+
   <dl>
-    <dt>Resident</dt><dd>{{ payment.full_name }}</dd>
+    <dt>Receipt Number</dt><dd><strong>{{ payment.receipt_number }}</strong></dd>
+    <dt>Resident Name</dt><dd>{{ payment.full_name }}</dd>
     <dt>Room</dt><dd>{{ payment.room_number or "-" }}</dd>
-    <dt>Month</dt><dd>{{ payment.month }}</dd>
-    <dt>Amount</dt><dd>Rs. {{ money(payment.amount) }}</dd>
-    <dt>Method</dt><dd>{{ payment.payment_method }}</dd>
-    <dt>Reference</dt><dd>{{ payment.transaction_reference or "-" }}</dd>
+    <dt>Billing Month</dt><dd>{{ payment.month }}</dd>
+    <dt>Amount Paid</dt><dd><strong style="color: var(--accent); font-size: 16px;">Rs. {{ money(payment.amount) }}</strong></dd>
+    <dt>Payment Method</dt><dd>{{ payment.payment_method }}</dd>
+    <dt>Reference / Bank</dt><dd>{{ payment.transaction_reference or payment.bank_name or "-" }}</dd>
     <dt>Payment Date</dt><dd>{{ payment.payment_date }}</dd>
-    <dt>Balance After Payment</dt><dd>Rs. {{ money(payment.balance) }}</dd>
+    <dt>Outstanding Balance</dt><dd>Rs. {{ money(payment.balance) }}</dd>
   </dl>
-  <button onclick="window.print()">Print Receipt</button>
+
+  <div style="display: flex; gap: 10px; margin-top: 20px;">
+    <button type="button" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+      <span>Print Receipt</span>
+    </button>
+  </div>
 </section>
 {% endblock %}

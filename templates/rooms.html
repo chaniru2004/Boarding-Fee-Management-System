@@ -1,44 +1,71 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head"><div><p class="eyebrow">Rooms</p><h2>Room Register</h2></div></section>
-<form class="panel" method="post">
-  <div class="form-grid">
-    <input name="room_number" placeholder="Room number" required>
-    <input name="floor" placeholder="Floor">
-    <input name="capacity" type="number" min="1" value="1">
-    <input name="notes" placeholder="Notes">
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Rooms</p>
+    <h2>Room Register</h2>
   </div>
-  <button>Save Room</button>
+</section>
+
+<form class="panel" method="post">
+  <h3 style="margin-top: 0; margin-bottom: 16px;">Add New Room</h3>
+  <div class="form-grid">
+    <div>
+      <label class="field-label">Room Number / Name</label>
+      <input name="room_number" placeholder="e.g. Room 1, 2nd Floor" required>
+    </div>
+    <div>
+      <label class="field-label">Floor</label>
+      <input name="floor" placeholder="e.g. 1, 2, Ground">
+    </div>
+    <div>
+      <label class="field-label">Capacity (Beds)</label>
+      <input name="capacity" type="number" min="1" value="1" required>
+    </div>
+    <div>
+      <label class="field-label">Notes</label>
+      <input name="notes" placeholder="Notes (optional)">
+    </div>
+  </div>
+  <button type="submit">Save Room</button>
 </form>
-<table>
-  <thead>
-    <tr>
-      <th>Room</th>
-      <th>Floor</th>
-      <th>Capacity</th>
-      <th>Occupied</th>
-      <th>Notes</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for room in rooms %}
-    <tr>
-      <td><strong>{{ room.room_number }}</strong></td>
-      <td>{{ room.floor or "-" }}</td>
-      <td>{{ room.capacity }}</td>
-      <td>{{ room.occupied }}</td>
-      <td>{{ room.notes or "-" }}</td>
-      <td class="actions-cell">
-        <a class="button-link button-sm" href="{{ url_for('edit_room', room_id=room.id) }}">Edit</a>
-        <form method="post" action="{{ url_for('delete_room', room_id=room.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete room {{ room.room_number }}? Any assigned residents will be set to no room.');">
-          <button type="submit" class="button-danger button-sm">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="6">No rooms registered yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+
+<h3>All Rooms</h3>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Room</th>
+        <th>Floor</th>
+        <th>Capacity</th>
+        <th>Occupied</th>
+        <th>Notes</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for room in rooms %}
+      <tr>
+        <td><strong>{{ room.room_number }}</strong></td>
+        <td>{{ room.floor or "-" }}</td>
+        <td>{{ room.capacity }} bed{% if room.capacity > 1 %}s{% endif %}</td>
+        <td>
+          <span class="badge {{ 'badge-overdue' if room.occupied >= room.capacity else 'badge-active' }}">
+            {{ room.occupied }} / {{ room.capacity }}
+          </span>
+        </td>
+        <td>{{ room.notes or "-" }}</td>
+        <td class="actions-cell">
+          <a class="button-link button-sm" href="{{ url_for('edit_room', room_id=room.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_room', room_id=room.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete room {{ room.room_number }}? Any assigned residents will be set to no room.');">
+            <button type="submit" class="button-danger button-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color: var(--muted); text-align: center; padding: 24px;">No rooms registered yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

@@ -1,12 +1,42 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head"><div><p class="eyebrow">History</p><h2>Audit Log</h2></div></section>
-<table>
-  <thead><tr><th>Time</th><th>Action</th><th>Table</th><th>Record</th><th>Before</th><th>After</th></tr></thead>
-  <tbody>
-    {% for audit in audits %}
-    <tr><td>{{ audit.created_at }}</td><td>{{ audit.action }}</td><td>{{ audit.table_name }}</td><td>{{ audit.record_key }}</td><td>{{ audit.before_value }}</td><td>{{ audit.after_value }}</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<section class="page-head">
+  <div>
+    <p class="eyebrow">History</p>
+    <h2>Audit Trail</h2>
+  </div>
+</section>
+
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Timestamp</th>
+        <th>Action</th>
+        <th>Table</th>
+        <th>Record</th>
+        <th>Before Value</th>
+        <th>After Value</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for audit in audits %}
+      <tr>
+        <td style="white-space: nowrap; font-size: 13px; color: var(--muted);">{{ audit.created_at }}</td>
+        <td>
+          <span class="badge {{ 'badge-overdue' if 'DELETE' in audit.action else ('badge-active' if 'CREATE' in audit.action else 'badge-part-paid') }}">
+            {{ audit.action }}
+          </span>
+        </td>
+        <td><code>{{ audit.table_name }}</code></td>
+        <td><strong>{{ audit.record_key }}</strong></td>
+        <td style="font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ audit.before_value or "-" }}</td>
+        <td style="font-size: 13px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;">{{ audit.after_value or "-" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" style="color: var(--muted); text-align: center; padding: 24px;">No audit logs recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

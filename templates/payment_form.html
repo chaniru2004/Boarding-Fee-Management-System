@@ -1,19 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head"><div><p class="eyebrow">Edit Payment</p><h2>{{ payment.receipt_number }}</h2></div></section>
-<form class="panel" method="post">
-  <div class="form-grid">
-    <input name="amount" type="number" step="0.01" value="{{ payment.amount }}" required>
-    <select name="payment_method">{% for method in payment_methods %}<option {{ 'selected' if payment.payment_method == method else '' }}>{{ method }}</option>{% endfor %}</select>
-    <input name="bank_name" value="{{ payment.bank_name or '' }}" placeholder="Bank name">
-    <input name="transaction_reference" value="{{ payment.transaction_reference or '' }}" placeholder="Transaction/reference">
-    <input name="payment_date" type="date" value="{{ payment.payment_date }}">
-    <input name="notes" value="{{ payment.notes or '' }}" placeholder="Notes">
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Edit Payment</p>
+    <h2>{{ payment.receipt_number }}</h2>
   </div>
-  <button>Update Payment</button>
+  <a class="button-link" href="{{ url_for('payments', month=payment.month) }}">Back to Payments</a>
+</section>
+
+<form class="panel" method="post">
+  <h3 style="margin-top: 0; margin-bottom: 16px;">Update Payment Details</h3>
+  <div class="form-grid">
+    <div>
+      <label class="field-label">Amount (Rs.)</label>
+      <input name="amount" type="number" step="0.01" value="{{ payment.amount }}" required>
+    </div>
+    <div>
+      <label class="field-label">Payment Method</label>
+      <select name="payment_method">
+        {% for method in payment_methods %}
+        <option {{ 'selected' if payment.payment_method == method else '' }}>{{ method }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label">Bank Name</label>
+      <input name="bank_name" value="{{ payment.bank_name or '' }}" placeholder="Bank name">
+    </div>
+    <div>
+      <label class="field-label">Transaction Reference</label>
+      <input name="transaction_reference" value="{{ payment.transaction_reference or '' }}" placeholder="Transaction/reference">
+    </div>
+    <div>
+      <label class="field-label">Payment Date</label>
+      <input name="payment_date" type="date" value="{{ payment.payment_date }}">
+    </div>
+    <div style="grid-column: 1 / -1;">
+      <label class="field-label">Notes</label>
+      <input name="notes" value="{{ payment.notes or '' }}" placeholder="Notes">
+    </div>
+  </div>
+  <button type="submit">Update Payment</button>
 </form>
-<form class="danger-panel" method="post" action="{{ url_for('reverse_payment', payment_id=payment.id) }}">
-  <input name="reason" placeholder="Reason for reversal">
-  <button>Reverse Payment</button>
-</form>
+
+<section class="danger-panel" style="margin-top: 24px;">
+  <p class="eyebrow" style="color: var(--warn);">Danger Zone</p>
+  <h3>Reverse Payment</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    Reversing a payment marks the receipt as reversed, subtracts the amount from the resident's paid total, and recalculates their balance while preserving full audit history.
+  </p>
+  <form method="post" action="{{ url_for('reverse_payment', payment_id=payment.id) }}">
+    <div style="margin-bottom: 12px;">
+      <label class="field-label">Reason for Reversal</label>
+      <input name="reason" placeholder="Enter reason for reversing this payment" required>
+    </div>
+    <button type="submit" class="button-danger">Reverse Payment</button>
+  </form>
+</section>
 {% endblock %}

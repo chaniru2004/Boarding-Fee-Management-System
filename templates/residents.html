@@ -1,7 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-head"><div><p class="eyebrow">People</p><h2>Residents</h2></div></section>
+<section class="page-head">
+  <div>
+    <p class="eyebrow">People</p>
+    <h2>Residents</h2>
+  </div>
+</section>
+
 <form class="panel" method="post">
+  <h3 style="margin-top: 0; margin-bottom: 16px;">Add New Resident</h3>
   <div class="form-grid">
     <div>
       <label class="field-label">Full Name</label>
@@ -59,39 +66,42 @@
   <button type="submit">Save Resident</button>
 </form>
 
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>NIC</th>
-      <th>Room</th>
-      <th>Phone</th>
-      <th>Faculty</th>
-      <th>Monthly Fee</th>
-      <th>Status</th>
-      <th>Actions</th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for resident in residents %}
-    <tr>
-      <td><strong>{{ resident.full_name }}</strong></td>
-      <td>{{ resident.nic or "-" }}</td>
-      <td>{{ resident.room_number or "-" }}</td>
-      <td>{{ resident.phone or "-" }}</td>
-      <td>{{ resident.faculty or "-" }}</td>
-      <td>Rs. {{ money(resident.monthly_fee) }}</td>
-      <td><span class="badge">{{ resident.status }}</span></td>
-      <td class="actions-cell">
-        <a class="button-link button-sm" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a>
-        <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
-          <button type="submit" class="button-danger button-sm">Delete</button>
-        </form>
-      </td>
-    </tr>
-    {% else %}
-    <tr><td colspan="8">No residents recorded yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<h3>Resident Directory</h3>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>NIC</th>
+        <th>Room</th>
+        <th>Phone</th>
+        <th>Faculty</th>
+        <th>Monthly Fee</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for resident in residents %}
+      <tr>
+        <td><strong>{{ resident.full_name }}</strong></td>
+        <td>{{ resident.nic or "-" }}</td>
+        <td>{{ resident.room_number or "-" }}</td>
+        <td>{{ resident.phone or "-" }}</td>
+        <td>{{ resident.faculty or "-" }}</td>
+        <td>Rs. {{ money(resident.monthly_fee) }}</td>
+        <td><span class="badge badge-{{ (resident.status or '')|lower }}">{{ resident.status }}</span></td>
+        <td class="actions-cell">
+          <a class="button-link button-sm" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
+            <button type="submit" class="button-danger button-sm">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="8" style="color: var(--muted);">No residents recorded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}

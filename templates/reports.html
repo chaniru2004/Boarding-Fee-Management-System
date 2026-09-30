@@ -1,23 +1,87 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="page-head">
-  <div><p class="eyebrow">Reports</p><h2>Monthly Report</h2></div>
-  <form class="inline-form" method="get"><input type="month" name="month" value="{{ month }}"><button>View</button></form>
+  <div>
+    <p class="eyebrow">Reports</p>
+    <h2>Monthly Financial Report</h2>
+  </div>
+  <form class="inline-form" method="get">
+    <input type="month" name="month" value="{{ month }}">
+    <button type="submit">View</button>
+  </form>
 </section>
-<p><a class="button-link" href="{{ url_for('download_database') }}">Download CSV Backup</a></p>
+
+<div style="margin-bottom: 20px;">
+  <a class="button-link" href="{{ url_for('download_database') }}">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+    <span>Download CSV Backup</span>
+  </a>
+</div>
+
 <section class="grid two">
   <div>
     <h3>Collection By Method</h3>
-    <table><tbody>{% for row in breakdown %}<tr><th>{{ row.payment_method }}</th><td>Rs. {{ money(row.total) }}</td><td>{{ row.count }}</td></tr>{% endfor %}</tbody></table>
+    <div class="table-container" style="margin-bottom: 0;">
+      <table>
+        <tbody>
+          {% for row in breakdown %}
+          <tr>
+            <th>{{ row.payment_method }}</th>
+            <td><strong>Rs. {{ money(row.total) }}</strong></td>
+            <td>{{ row.count }} payments</td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="color: var(--muted);">No payment breakdown available for this month.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
   <div>
-    <h3>Payments</h3>
-    <table><tbody>{% for payment in payments %}<tr><td>{{ payment.receipt_number }}</td><td>{{ payment.full_name }}</td><td>Rs. {{ money(payment.amount) }}</td></tr>{% endfor %}</tbody></table>
+    <h3>Payments Recorded</h3>
+    <div class="table-container" style="margin-bottom: 0;">
+      <table>
+        <tbody>
+          {% for payment in payments %}
+          <tr>
+            <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
+            <td>{{ payment.full_name }}</td>
+            <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="3" style="color: var(--muted);">No payments recorded for this month.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
-<h3>Fee Balances</h3>
-<table>
-  <thead><tr><th>Resident</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
-  <tbody>{% for fee in fees %}<tr><td>{{ fee.full_name }}</td><td>Rs. {{ money(fee.amount_due) }}</td><td>Rs. {{ money(fee.amount_paid) }}</td><td>Rs. {{ money(fee.balance) }}</td><td>{{ fee.status }}</td></tr>{% endfor %}</tbody>
-</table>
+
+<h3>Fee Balances & Status</h3>
+<div class="table-container">
+  <table>
+    <thead>
+      <tr>
+        <th>Resident</th>
+        <th>Due</th>
+        <th>Paid</th>
+        <th>Balance</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for fee in fees %}
+      <tr>
+        <td><strong>{{ fee.full_name }}</strong></td>
+        <td>Rs. {{ money(fee.amount_due) }}</td>
+        <td>Rs. {{ money(fee.amount_paid) }}</td>
+        <td><strong>Rs. {{ money(fee.balance) }}</strong></td>
+        <td><span class="badge badge-{{ (fee.status or '')|lower|replace(' ', '-') }}">{{ fee.status }}</span></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" style="color: var(--muted); text-align: center; padding: 24px;">No fees recorded for this month.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endblock %}
