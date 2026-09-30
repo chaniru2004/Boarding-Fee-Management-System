@@ -3,7 +3,7 @@
 venv/
 ENV/
 
-# Python cache
+# Python cache & build
 __pycache__/
 *.py[cod]
 *$py.class
@@ -12,13 +12,16 @@ __pycache__/
 .env
 .env.*
 
-# Local DB / backups
+# Local SQLite databases & backups
 *.db
 *.db.bak
 *.sqlite3
 
-# OS & Editor
+# OS files
 .DS_Store
 Thumbs.db
+
+# IDE files
 .idea/
 .vscode/
+*.swp

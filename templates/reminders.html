@@ -10,7 +10,7 @@
       <th>Resident</th>
       <th>Room</th>
       <th>Phone</th>
-      <th>Email</th>
+      <th>NIC</th>
       <th>Balance</th>
       <th>Status</th>
       <th>WhatsApp Notice</th>
@@ -22,11 +22,11 @@
       <td>{{ row.full_name }}</td>
       <td>{{ row.room_number or "-" }}</td>
       <td>{{ row.phone or "-" }}</td>
-      <td>{{ row.email or "-" }}</td>
+      <td>{{ row.nic or "-" }}</td>
       <td>Rs. {{ money(row.balance) }}</td>
       <td><span class="badge">{{ row.status }}</span></td>
       <td>
-        <a href="{{ row.whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="whatsapp-btn" title="Open WhatsApp with pre-filled notice">
+        <a href="{{ row.whatsapp_url }}" target="_blank" rel="noopener noreferrer" class="whatsapp-btn" title="Open WhatsApp with pre-filled reminder message">
           Send WhatsApp Notice
         </a>
       </td>

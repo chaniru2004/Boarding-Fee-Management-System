@@ -3,23 +3,70 @@
 <section class="page-head"><div><p class="eyebrow">People</p><h2>Residents</h2></div></section>
 <form class="panel" method="post">
   <div class="form-grid">
-    <input name="full_name" placeholder="Full name" required>
-    <input name="phone" placeholder="Phone">
-    <input name="email" placeholder="Email">
-    <input name="guardian_name" placeholder="Guardian name">
-    <input name="guardian_phone" placeholder="Guardian phone">
-    <select name="room_id"><option value="">No room</option>{% for room in rooms %}<option value="{{ room.id }}">{{ room.room_number }}</option>{% endfor %}</select>
-    <input name="monthly_fee" type="number" step="0.01" placeholder="Monthly fee" required>
-    <select name="status"><option>Active</option><option>Inactive</option></select>
+    <div>
+      <label class="field-label">Full Name</label>
+      <input name="full_name" placeholder="Full name" required>
+    </div>
+    <div>
+      <label class="field-label">NIC</label>
+      <input name="nic" placeholder="National Identity Card" required>
+    </div>
+    <div>
+      <label class="field-label">Phone</label>
+      <input name="phone" placeholder="Phone number">
+    </div>
+    <div>
+      <label class="field-label">Date of Birth</label>
+      <input name="date_of_birth" type="date">
+    </div>
+    <div>
+      <label class="field-label">Faculty</label>
+      <input name="faculty" placeholder="Faculty / Department">
+    </div>
+    <div>
+      <label class="field-label">Address</label>
+      <input name="address" placeholder="Permanent address">
+    </div>
+    <div>
+      <label class="field-label">Guardian Name</label>
+      <input name="guardian_name" placeholder="Guardian name">
+    </div>
+    <div>
+      <label class="field-label">Guardian Phone</label>
+      <input name="guardian_phone" placeholder="Guardian phone">
+    </div>
+    <div>
+      <label class="field-label">Room</label>
+      <select name="room_id">
+        <option value="">No room</option>
+        {% for room in rooms %}
+        <option value="{{ room.id }}">{{ room.room_number }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label class="field-label">Monthly Fee (Rs.)</label>
+      <input name="monthly_fee" type="number" step="0.01" placeholder="Monthly fee" required>
+    </div>
+    <div>
+      <label class="field-label">Status</label>
+      <select name="status">
+        <option>Active</option>
+        <option>Inactive</option>
+      </select>
+    </div>
   </div>
-  <button>Save Resident</button>
+  <button type="submit">Save Resident</button>
 </form>
+
 <table>
   <thead>
     <tr>
       <th>Name</th>
+      <th>NIC</th>
       <th>Room</th>
       <th>Phone</th>
+      <th>Faculty</th>
       <th>Monthly Fee</th>
       <th>Status</th>
       <th>Actions</th>
@@ -28,9 +75,11 @@
   <tbody>
     {% for resident in residents %}
     <tr>
-      <td>{{ resident.full_name }}</td>
+      <td><strong>{{ resident.full_name }}</strong></td>
+      <td>{{ resident.nic or "-" }}</td>
       <td>{{ resident.room_number or "-" }}</td>
       <td>{{ resident.phone or "-" }}</td>
+      <td>{{ resident.faculty or "-" }}</td>
       <td>Rs. {{ money(resident.monthly_fee) }}</td>
       <td><span class="badge">{{ resident.status }}</span></td>
       <td class="actions-cell">
@@ -41,7 +90,7 @@
       </td>
     </tr>
     {% else %}
-    <tr><td colspan="6">No residents recorded yet.</td></tr>
+    <tr><td colspan="8">No residents recorded yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

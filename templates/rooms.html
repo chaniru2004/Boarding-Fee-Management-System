@@ -11,7 +11,34 @@
   <button>Save Room</button>
 </form>
 <table>
-  <thead><tr><th>Room</th><th>Floor</th><th>Capacity</th><th>Occupied</th><th>Notes</th></tr></thead>
-  <tbody>{% for room in rooms %}<tr><td>{{ room.room_number }}</td><td>{{ room.floor }}</td><td>{{ room.capacity }}</td><td>{{ room.occupied }}</td><td>{{ room.notes }}</td></tr>{% endfor %}</tbody>
+  <thead>
+    <tr>
+      <th>Room</th>
+      <th>Floor</th>
+      <th>Capacity</th>
+      <th>Occupied</th>
+      <th>Notes</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for room in rooms %}
+    <tr>
+      <td><strong>{{ room.room_number }}</strong></td>
+      <td>{{ room.floor or "-" }}</td>
+      <td>{{ room.capacity }}</td>
+      <td>{{ room.occupied }}</td>
+      <td>{{ room.notes or "-" }}</td>
+      <td class="actions-cell">
+        <a class="button-link button-sm" href="{{ url_for('edit_room', room_id=room.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('delete_room', room_id=room.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete room {{ room.room_number }}? Any assigned residents will be set to no room.');">
+          <button type="submit" class="button-danger button-sm">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="6">No rooms registered yet.</td></tr>
+    {% endfor %}
+  </tbody>
 </table>
 {% endblock %}

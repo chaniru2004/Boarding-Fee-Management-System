@@ -45,13 +45,16 @@
 
 <h3>Monthly Fee Position</h3>
 <table>
-  <thead><tr><th>Resident</th><th>Room</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+  <thead><tr><th>Resident</th><th>Room</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead>
   <tbody>
     {% for fee in fees %}
     <tr>
       <td>{{ fee.full_name }}</td><td>{{ fee.room_number or "-" }}</td>
       <td>Rs. {{ money(fee.amount_due) }}</td><td>Rs. {{ money(fee.amount_paid) }}</td>
       <td>Rs. {{ money(fee.balance) }}</td><td><span class="badge">{{ fee.status }}</span></td>
+      <td class="actions-cell">
+        <a class="button-link button-sm" href="{{ url_for('edit_fee', fee_id=fee.id) }}">Edit</a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

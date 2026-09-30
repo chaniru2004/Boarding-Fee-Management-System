@@ -131,11 +131,20 @@ button, .button-link {
   background: #1ebc59;
   color: #ffffff;
 }
+.field-label, label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+}
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
 }
 .inline-form { display: flex; gap: 8px; align-items: center; }
 .inline-form input { width: auto; }

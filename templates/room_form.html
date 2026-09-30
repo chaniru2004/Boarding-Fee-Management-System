@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Rooms</p>
+    <h2>Edit Room {{ room.room_number }}</h2>
+  </div>
+  <a class="button-link" href="{{ url_for('rooms') }}">Back to Rooms</a>
+</section>
+
+<form class="panel" method="post">
+  <div class="form-grid">
+    <div>
+      <label class="field-label">Room Number</label>
+      <input name="room_number" value="{{ room.room_number }}" required>
+    </div>
+    <div>
+      <label class="field-label">Floor</label>
+      <input name="floor" value="{{ room.floor or '' }}">
+    </div>
+    <div>
+      <label class="field-label">Capacity</label>
+      <input name="capacity" type="number" min="1" value="{{ room.capacity }}" required>
+    </div>
+    <div>
+      <label class="field-label">Notes</label>
+      <input name="notes" value="{{ room.notes or '' }}">
+    </div>
+  </div>
+  <button type="submit">Update Room</button>
+</form>
+
+<section class="danger-panel" style="margin-top: 24px;">
+  <p class="eyebrow" style="color: var(--warn);">Danger Zone</p>
+  <h3>Delete Room</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    Safely delete this room. Any residents currently assigned to this room will be unassigned (set to No Room) without deleting the residents or their records.
+  </p>
+  <form method="post" action="{{ url_for('delete_room', room_id=room.id) }}" onsubmit="return confirm('Are you sure you want to delete room {{ room.room_number }}? Any assigned residents will be set to no room.');">
+    <button type="submit" class="button-danger">Delete Room</button>
+  </form>
+</section>
+{% endblock %}

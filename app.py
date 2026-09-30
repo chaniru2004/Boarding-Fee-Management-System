@@ -173,35 +173,26 @@ def create_app(test_config: dict | None = None) -> Flask:
         if request.method == "POST":
 
             g.db.execute(
-
                 """
-
-                INSERT INTO residents (full_name, phone, email, guardian_name, guardian_phone, room_id, monthly_fee, status)
-
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-
+                INSERT INTO residents (
+                    full_name, phone, nic, date_of_birth, address, faculty,
+                    guardian_name, guardian_phone, room_id, monthly_fee, status
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
-
                 (
-
                     request.form["full_name"].strip(),
-
                     request.form.get("phone", "").strip(),
-
-                    request.form.get("email", "").strip(),
-
+                    request.form.get("nic", "").strip(),
+                    request.form.get("date_of_birth") or None,
+                    request.form.get("address", "").strip(),
+                    request.form.get("faculty", "").strip(),
                     request.form.get("guardian_name", "").strip(),
-
                     request.form.get("guardian_phone", "").strip(),
-
                     value_or_none(request.form.get("room_id")),
-
                     decimal_string(request.form.get("monthly_fee", "0")),
-
                     request.form.get("status", "Active"),
-
                 ),
-
             )
 
             g.db.commit()
@@ -239,41 +230,26 @@ def create_app(test_config: dict | None = None) -> Flask:
         if request.method == "POST":
 
             g.db.execute(
-
                 """
-
                 UPDATE residents
-
-                SET full_name = %s, phone = %s, email = %s, guardian_name = %s, guardian_phone = %s,
-
-                    room_id = %s, monthly_fee = %s, status = %s
-
+                SET full_name = %s, phone = %s, nic = %s, date_of_birth = %s, address = %s, faculty = %s,
+                    guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s
                 WHERE id = %s
-
                 """,
-
                 (
-
                     request.form["full_name"].strip(),
-
                     request.form.get("phone", "").strip(),
-
-                    request.form.get("email", "").strip(),
-
+                    request.form.get("nic", "").strip(),
+                    request.form.get("date_of_birth") or None,
+                    request.form.get("address", "").strip(),
+                    request.form.get("faculty", "").strip(),
                     request.form.get("guardian_name", "").strip(),
-
                     request.form.get("guardian_phone", "").strip(),
-
                     value_or_none(request.form.get("room_id")),
-
                     decimal_string(request.form.get("monthly_fee", "0")),
-
                     request.form.get("status", "Active"),
-
                     resident_id,
-
                 ),
-
             )
 
             g.db.commit()
@@ -371,6 +347,44 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         return render_template("rooms.html", active="rooms", rooms=rows)
 
+    @app.route("/rooms/<int:room_id>/edit", methods=["GET", "POST"])
+    def edit_room(room_id: int):
+        room = get_one("SELECT * FROM rooms WHERE id = %s", (room_id,))
+        if request.method == "POST":
+            room_number = request.form["room_number"].strip()
+            floor = request.form.get("floor", "").strip()
+            capacity = int(request.form.get("capacity") or 1)
+            notes = request.form.get("notes", "").strip()
+            g.db.execute(
+                """
+                UPDATE rooms
+                SET room_number = %s, floor = %s, capacity = %s, notes = %s
+                WHERE id = %s
+                """,
+                (room_number, floor, capacity, notes, room_id),
+            )
+            log_audit("UPDATE", "rooms", str(room_id), room["room_number"], f"Updated room {room_number}")
+            g.db.commit()
+            flash(f"Room '{room_number}' updated successfully.", "success")
+            return redirect(url_for("rooms"))
+
+        occupied_count = g.db.execute(
+            "SELECT COUNT(*) AS count FROM residents WHERE room_id = %s AND status = 'Active'",
+            (room_id,),
+        ).fetchone()["count"]
+        return render_template("room_form.html", active="rooms", room=room, occupied=occupied_count)
+
+    @app.route("/rooms/<int:room_id>/delete", methods=["POST"])
+    def delete_room(room_id: int):
+        room = get_one("SELECT * FROM rooms WHERE id = %s", (room_id,))
+        with g.db.cursor() as cur:
+            cur.execute("UPDATE residents SET room_id = NULL WHERE room_id = %s", (room_id,))
+            cur.execute("DELETE FROM rooms WHERE id = %s", (room_id,))
+        log_audit("DELETE", "rooms", str(room_id), room["room_number"], "Deleted room; unassigned associated residents")
+        g.db.commit()
+        flash(f"Room '{room['room_number']}' deleted successfully.", "success")
+        return redirect(url_for("rooms"))
+
     @app.route("/fees", methods=["GET", "POST"])
 
     def fees():
@@ -410,6 +424,37 @@ def create_app(test_config: dict | None = None) -> Flask:
         refresh_all_statuses(month)
 
         return render_template("fees.html", active="fees", month=month, fees=fee_rows(month))
+
+    @app.route("/fees/<int:fee_id>/edit", methods=["GET", "POST"])
+    def edit_fee(fee_id: int):
+        fee = get_one(
+            """
+            SELECT mf.*, r.full_name, r.phone, r.nic, rooms.room_number
+            FROM monthly_fees mf
+            JOIN residents r ON r.id = mf.resident_id
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            WHERE mf.id = %s
+            """,
+            (fee_id,),
+        )
+        if request.method == "POST":
+            due_date = request.form["due_date"].strip()
+            amount_due = decimal_string(request.form.get("amount_due", "0"))
+            before_val = f"Due: {fee['amount_due']}, Due Date: {fee['due_date']}"
+            after_val = f"Due: {amount_due}, Due Date: {due_date}"
+
+            g.db.execute(
+                "UPDATE monthly_fees SET due_date = %s, amount_due = %s WHERE id = %s",
+                (due_date, amount_due, fee_id),
+            )
+            g.db.commit()
+            update_fee_status(fee_id)
+            log_audit("UPDATE", "monthly_fees", str(fee_id), before_val, after_val)
+            g.db.commit()
+            flash(f"Fee for '{fee['full_name']}' ({fee['month']}) updated successfully.", "success")
+            return redirect(url_for("fees", month=fee["month"]))
+
+        return render_template("fee_form.html", active="fees", fee=fee)
 
     @app.route("/payments", methods=["GET", "POST"])
 
@@ -636,7 +681,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         refresh_all_statuses(month)
         rows = g.db.execute(
             """
-            SELECT mf.*, r.full_name, r.phone, r.email, rooms.room_number
+            SELECT mf.*, r.full_name, r.phone, r.nic, rooms.room_number
             FROM monthly_fees mf
             JOIN residents r ON r.id = mf.resident_id
             LEFT JOIN rooms ON rooms.id = r.room_id
@@ -771,7 +816,13 @@ def init_db() -> None:
 
                 phone TEXT,
 
-                email TEXT,
+                nic TEXT,
+
+                date_of_birth DATE,
+
+                address TEXT,
+
+                faculty TEXT,
 
                 guardian_name TEXT,
 
@@ -854,6 +905,11 @@ def init_db() -> None:
                 created_at TIMESTAMP NOT NULL
 
             );
+
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS nic TEXT;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS date_of_birth DATE;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS address TEXT;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS faculty TEXT;
 
             """,
 
@@ -1046,7 +1102,7 @@ def fee_rows(month: str):
 
         """
 
-        SELECT mf.*, r.full_name, r.phone, rooms.room_number
+        SELECT mf.*, r.full_name, r.phone, r.nic, rooms.room_number
 
         FROM monthly_fees mf
 
