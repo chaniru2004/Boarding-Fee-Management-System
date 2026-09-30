@@ -5,10 +5,17 @@
     <p class="eyebrow">Receipts</p>
     <h2>Payments</h2>
   </div>
-  <form class="inline-form" method="get">
-    <input type="month" name="month" value="{{ month }}">
-    <button type="submit">View</button>
-  </form>
+  <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+    <form class="inline-form" method="get" style="display: flex; gap: 8px; align-items: center; margin: 0;">
+      <input type="month" name="month" value="{{ month if month != 'all' else current_month }}">
+      <button type="submit">Filter Month</button>
+    </form>
+    {% if month != 'all' %}
+    <a class="button-link button-outline" href="{{ url_for('payments', month='all') }}">Show All Months</a>
+    {% else %}
+    <a class="button-link button-outline" href="{{ url_for('payments', month=current_month) }}">Current Month</a>
+    {% endif %}
+  </div>
 </section>
 
 <form class="panel" method="post">
@@ -16,12 +23,17 @@
   <h3 style="margin-top: 0; margin-bottom: 16px;">Record New Payment</h3>
   <div class="form-grid">
     <div>
-      <label class="field-label">Resident / Fee</label>
-      <select name="monthly_fee_id" required>
-        {% for fee in fees %}
-        <option value="{{ fee.id }}">{{ fee.full_name }} (Balance: Rs. {{ money(fee.balance) }})</option>
+      <label class="field-label">Resident</label>
+      <select name="resident_id" required>
+        <option value="" disabled {% if not residents %}selected{% endif %}>Select Resident</option>
+        {% for res in residents %}
+        <option value="{{ res.id }}">{{ res.full_name }}{% if res.room_number %} (Room: {{ res.room_number }}){% endif %}</option>
         {% endfor %}
       </select>
+    </div>
+    <div>
+      <label class="field-label">Payment Month</label>
+      <input name="payment_month" type="month" value="{{ month if month != 'all' else current_month }}" required>
     </div>
     <div>
       <label class="field-label">Amount (Rs.)</label>
@@ -48,14 +60,19 @@
       <input name="payment_date" type="date" value="{{ today }}">
     </div>
     <div style="grid-column: 1 / -1;">
-      <label class="field-label">Payment Month / Notes</label>
-      <input name="notes" placeholder="Enter payment month or notes (e.g. September 2026)">
+      <label class="field-label">Additional Notes</label>
+      <input name="notes" placeholder="Optional notes / remarks (e.g. advance, partial payment, etc.)">
     </div>
   </div>
   <button type="submit">Record Payment</button>
 </form>
 
-<h3>Payment History</h3>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 28px; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+  <h3 style="margin: 0;">Payment History</h3>
+  <span style="font-size: 13px; color: var(--muted);">
+    Filtered by: <strong>{{ 'All Months' if month == 'all' else month }}</strong> ({{ payments|length }} payment{{ 's' if payments|length != 1 else '' }})
+  </span>
+</div>
 <div class="table-container">
   <table>
     <thead>
@@ -67,6 +84,7 @@
         <th>Method</th>
         <th>Date</th>
         <th>Status</th>
+        <th>Notes</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -75,17 +93,18 @@
       <tr>
         <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
         <td>{{ payment.full_name }}</td>
-        <td><strong>{{ payment.notes or payment.month }}</strong></td>
+        <td><span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ payment.payment_month or '-' }}</span></td>
         <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
         <td><span class="badge">{{ payment.payment_method }}</span></td>
         <td>{{ payment.payment_date }}</td>
         <td><span class="badge badge-{{ 'reversed' if payment.is_reversed else 'active' }}">{{ "Reversed" if payment.is_reversed else "Active" }}</span></td>
+        <td style="color: var(--muted); font-size: 13px;">{{ payment.notes or '-' }}</td>
         <td class="actions-cell">
           <a class="button-link button-sm" href="{{ url_for('edit_payment', payment_id=payment.id) }}">Edit</a>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded yet for this month.</td></tr>
+      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No payments recorded {% if month != 'all' %}for {{ month }}{% endif %}.</td></tr>
       {% endfor %}
     </tbody>
   </table>

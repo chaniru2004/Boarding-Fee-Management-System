@@ -5,7 +5,7 @@
     <p class="eyebrow">Payment Receipt</p>
     <h2>{{ payment.receipt_number }}</h2>
   </div>
-  <a class="button-link" href="{{ url_for('payments', month=payment.month) }}">Back to Payments</a>
+  <a class="button-link" href="{{ url_for('payments', month=payment.payment_month or payment.month) }}">Back to Payments</a>
 </section>
 
 <section class="receipt panel">
@@ -21,12 +21,15 @@
     <dt>Receipt Number</dt><dd><strong>{{ payment.receipt_number }}</strong></dd>
     <dt>Resident Name</dt><dd>{{ payment.full_name }}</dd>
     <dt>Room</dt><dd>{{ payment.room_number or "-" }}</dd>
-    <dt>Billing Month</dt><dd>{{ payment.month }}</dd>
+    <dt>Payment Month</dt><dd><strong>{{ payment.payment_month or payment.month }}</strong></dd>
     <dt>Amount Paid</dt><dd><strong style="color: var(--accent); font-size: 16px;">Rs. {{ money(payment.amount) }}</strong></dd>
     <dt>Payment Method</dt><dd>{{ payment.payment_method }}</dd>
     <dt>Reference / Bank</dt><dd>{{ payment.transaction_reference or payment.bank_name or "-" }}</dd>
     <dt>Payment Date</dt><dd>{{ payment.payment_date }}</dd>
     <dt>Outstanding Balance</dt><dd>Rs. {{ money(payment.balance) }}</dd>
+    {% if payment.notes %}
+    <dt>Notes</dt><dd>{{ payment.notes }}</dd>
+    {% endif %}
   </dl>
 
   <div style="display: flex; gap: 10px; margin-top: 20px;">

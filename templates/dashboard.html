@@ -83,7 +83,7 @@
       <tr>
         <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
         <td>{{ payment.full_name }}</td>
-        <td><strong>{{ payment.notes or payment.month }}</strong></td>
+        <td><span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ payment.payment_month or payment.month }}</span></td>
         <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
         <td><span class="badge">{{ payment.payment_method }}</span></td>
         <td>{{ payment.payment_date }}</td>

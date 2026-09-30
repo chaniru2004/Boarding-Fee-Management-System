@@ -126,7 +126,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             """
 
-            SELECT p.*, r.full_name, mf.month
+            SELECT p.*, COALESCE(p.payment_month, mf.month) AS payment_month, r.full_name, mf.month
 
             FROM payments p
 
@@ -460,15 +460,15 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     def payments():
 
-        month = request.values.get("month") or current_month()
+        month = request.values.get("month")
+        if not month:
+            month = current_month()
 
-        ensure_monthly_fees(month)
-
-        refresh_all_statuses(month)
+        if month != "all":
+            ensure_monthly_fees(month)
+            refresh_all_statuses(month)
 
         if request.method == "POST":
-
-            monthly_fee_id = int(request.form["monthly_fee_id"])
 
             method = request.form["payment_method"]
 
@@ -484,6 +484,35 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 return redirect(url_for("payments", month=month))
 
+            if "resident_id" in request.form and request.form["resident_id"]:
+                resident_id = int(request.form["resident_id"])
+                payment_month = request.form.get("payment_month", "").strip() or (month if month != "all" else current_month())
+                ensure_monthly_fees(payment_month)
+                fee = g.db.execute(
+                    "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = %s",
+                    (resident_id, payment_month),
+                ).fetchone()
+                if not fee:
+                    due_date = f"{payment_month}-10"
+                    res_info = g.db.execute("SELECT monthly_fee FROM residents WHERE id = %s", (resident_id,)).fetchone()
+                    fee_due = res_info["monthly_fee"] if res_info else "0"
+                    fee = g.db.execute(
+                        """
+                        INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                        VALUES (%s, %s, %s, %s, %s, 'Unpaid')
+                        RETURNING id
+                        """,
+                        (resident_id, payment_month, due_date, fee_due, fee_due),
+                    ).fetchone()
+                monthly_fee_id = fee["id"]
+            elif "monthly_fee_id" in request.form and request.form["monthly_fee_id"]:
+                monthly_fee_id = int(request.form["monthly_fee_id"])
+                fee = g.db.execute("SELECT resident_id, month FROM monthly_fees WHERE id = %s", (monthly_fee_id,)).fetchone()
+                payment_month = request.form.get("payment_month", "").strip() or (fee["month"] if fee else current_month())
+            else:
+                flash("Please select a resident.", "error")
+                return redirect(url_for("payments", month=month))
+
             receipt_number = next_receipt_number()
 
             g.db.execute(
@@ -494,9 +523,9 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                     (monthly_fee_id, receipt_number, amount, payment_method, bank_name,
 
-                     transaction_reference, payment_date, notes, created_at)
+                     transaction_reference, payment_date, payment_month, notes, created_at)
 
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
 
                 """,
 
@@ -516,6 +545,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                     request.form.get("payment_date") or date.today().isoformat(),
 
+                    payment_month,
+
                     request.form.get("notes", "").strip(),
 
                     now(),
@@ -524,19 +555,37 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             )
 
-            log_audit("CREATE_PAYMENT", "payments", receipt_number, "", f"Recorded {receipt_number}")
+            log_audit("CREATE_PAYMENT", "payments", receipt_number, "", f"Recorded {receipt_number} for {payment_month}")
 
             g.db.commit()
 
             update_fee_status(monthly_fee_id)
 
-            flash(f"Payment recorded. Receipt {receipt_number} created.", "success")
+            flash(f"Payment recorded for {payment_month}. Receipt {receipt_number} created.", "success")
 
             return redirect(url_for("receipt", receipt_number=receipt_number))
 
         history = payment_history(month)
+        active_residents = g.db.execute(
+            """
+            SELECT r.id, r.full_name, r.monthly_fee, rooms.room_number
+            FROM residents r
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            WHERE r.status = 'Active'
+            ORDER BY r.full_name
+            """
+        ).fetchall()
+        fees_data = fee_rows(month if month != "all" else current_month())
 
-        return render_template("payments.html", active="payments", month=month, fees=fee_rows(month), payments=history)
+        return render_template(
+            "payments.html",
+            active="payments",
+            month=month,
+            current_month=current_month(),
+            residents=active_residents,
+            fees=fees_data,
+            payments=history,
+        )
 
     @app.route("/payments/<int:payment_id>/edit", methods=["GET", "POST"])
 
@@ -544,11 +593,15 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         payment = payment_detail(payment_id)
 
+        if not payment:
+            flash("Payment not found.", "error")
+            return redirect(url_for("payments"))
+
         if payment["is_reversed"]:
 
             flash("Reversed payments cannot be edited.", "error")
 
-            return redirect(url_for("payments", month=payment["month"]))
+            return redirect(url_for("payments", month=payment.get("payment_month") or payment["month"]))
 
         if request.method == "POST":
 
@@ -560,6 +613,30 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 return redirect(url_for("edit_payment", payment_id=payment_id))
 
+            new_month = request.form.get("payment_month", "").strip() or payment.get("payment_month") or payment["month"]
+            target_fee_id = payment["monthly_fee_id"]
+            old_fee_id = payment["monthly_fee_id"]
+
+            if new_month != (payment.get("payment_month") or payment["month"]):
+                ensure_monthly_fees(new_month)
+                target_fee = g.db.execute(
+                    "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = %s",
+                    (payment["resident_id"], new_month),
+                ).fetchone()
+                if not target_fee:
+                    due_date = f"{new_month}-10"
+                    fee_res = g.db.execute("SELECT monthly_fee FROM residents WHERE id = %s", (payment["resident_id"],)).fetchone()
+                    due_amt = fee_res["monthly_fee"] if fee_res else "0"
+                    target_fee = g.db.execute(
+                        """
+                        INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                        VALUES (%s, %s, %s, %s, %s, 'Unpaid')
+                        RETURNING id
+                        """,
+                        (payment["resident_id"], new_month, due_date, due_amt, due_amt),
+                    ).fetchone()
+                target_fee_id = target_fee["id"]
+
             before = dict(payment)
 
             g.db.execute(
@@ -568,15 +645,18 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 UPDATE payments
 
-                SET amount = %s, payment_method = %s, bank_name = %s, transaction_reference = %s,
-
-                    payment_date = %s, notes = %s, updated_at = %s
+                SET monthly_fee_id = %s, payment_month = %s, amount = %s, payment_method = %s,
+                    bank_name = %s, transaction_reference = %s, payment_date = %s, notes = %s, updated_at = %s
 
                 WHERE id = %s
 
                 """,
 
                 (
+
+                    target_fee_id,
+
+                    new_month,
 
                     decimal_string(request.form["amount"]),
 
@@ -604,11 +684,13 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             g.db.commit()
 
-            update_fee_status(payment["monthly_fee_id"])
+            update_fee_status(old_fee_id)
+            if target_fee_id != old_fee_id:
+                update_fee_status(target_fee_id)
 
             flash("Payment updated and audit trail recorded.", "success")
 
-            return redirect(url_for("payments", month=payment["month"]))
+            return redirect(url_for("payments", month=new_month))
 
         return render_template("payment_form.html", active="payments", payment=payment)
 
@@ -636,7 +718,7 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         flash("Payment reversed. The original record remains in history.", "success")
 
-        return redirect(url_for("payments", month=payment["month"]))
+        return redirect(url_for("payments", month=payment.get("payment_month") or payment["month"]))
 
     @app.route("/receipt/<receipt_number>")
 
@@ -646,7 +728,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             """
 
-            SELECT p.*, mf.month, mf.amount_due, mf.amount_paid, mf.balance,
+            SELECT p.*, COALESCE(p.payment_month, mf.month) AS payment_month,
+                   mf.month, mf.amount_due, mf.amount_paid, mf.balance,
 
                    r.full_name, r.phone, rooms.room_number
 
@@ -885,6 +968,8 @@ def init_db() -> None:
 
                 payment_date DATE NOT NULL,
 
+                payment_month TEXT,
+
                 notes TEXT,
 
                 is_reversed INTEGER NOT NULL DEFAULT 0,
@@ -919,6 +1004,12 @@ def init_db() -> None:
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS date_of_birth DATE;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS address TEXT;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS faculty TEXT;
+            ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_month TEXT;
+            UPDATE payments p
+            SET payment_month = mf.month
+            FROM monthly_fees mf
+            WHERE mf.id = p.monthly_fee_id
+              AND (p.payment_month IS NULL OR p.payment_month = '');
 
             """,
 
@@ -1368,13 +1459,36 @@ def fee_rows(month: str):
 
     ).fetchall()
 
-def payment_history(month: str):
+def payment_history(month: str = None):
+
+    if month and month != "all":
+        return g.db.execute(
+
+            """
+
+            SELECT p.*, COALESCE(p.payment_month, mf.month) AS payment_month, mf.month AS fee_month, r.full_name
+
+            FROM payments p
+
+            JOIN monthly_fees mf ON mf.id = p.monthly_fee_id
+
+            JOIN residents r ON r.id = mf.resident_id
+
+            WHERE COALESCE(p.payment_month, mf.month) = %s
+
+            ORDER BY p.payment_date DESC, p.id DESC
+
+            """,
+
+            (month,),
+
+        ).fetchall()
 
     return g.db.execute(
 
         """
 
-        SELECT p.*, mf.month, r.full_name
+        SELECT p.*, COALESCE(p.payment_month, mf.month) AS payment_month, mf.month AS fee_month, r.full_name
 
         FROM payments p
 
@@ -1382,13 +1496,9 @@ def payment_history(month: str):
 
         JOIN residents r ON r.id = mf.resident_id
 
-        WHERE mf.month = %s
-
         ORDER BY p.payment_date DESC, p.id DESC
 
         """,
-
-        (month,),
 
     ).fetchall()
 
@@ -1398,7 +1508,9 @@ def payment_detail(payment_id: int, fresh: bool = True):
 
         """
 
-        SELECT p.*, mf.month, mf.amount_due, mf.amount_paid, mf.balance, r.full_name
+        SELECT p.*, COALESCE(p.payment_month, mf.month) AS payment_month,
+               mf.month, mf.amount_due, mf.amount_paid, mf.balance,
+               r.id AS resident_id, r.full_name
 
         FROM payments p
 
@@ -1416,6 +1528,29 @@ def payment_detail(payment_id: int, fresh: bool = True):
 
 def collection_breakdown(month: str):
 
+    if month and month != "all":
+        return g.db.execute(
+
+            """
+
+            SELECT p.payment_method, COALESCE(SUM(p.amount), 0) AS total, COUNT(*) AS count
+
+            FROM payments p
+
+            JOIN monthly_fees mf ON mf.id = p.monthly_fee_id
+
+            WHERE COALESCE(p.payment_month, mf.month) = %s AND p.is_reversed = 0
+
+            GROUP BY p.payment_method
+
+            ORDER BY total DESC
+
+            """,
+
+            (month,),
+
+        ).fetchall()
+
     return g.db.execute(
 
         """
@@ -1426,15 +1561,13 @@ def collection_breakdown(month: str):
 
         JOIN monthly_fees mf ON mf.id = p.monthly_fee_id
 
-        WHERE mf.month = %s AND p.is_reversed = 0
+        WHERE p.is_reversed = 0
 
         GROUP BY p.payment_method
 
         ORDER BY total DESC
 
         """,
-
-        (month,),
 
     ).fetchall()
 
