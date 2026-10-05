@@ -50,11 +50,11 @@
         <option value="{{ room.id }}" {{ 'selected' if resident.room_id == room.id else '' }}>
           {{ room.room_number }}
           {% if resident.room_id == room.id %}
-            (Current Room &mdash; {{ room.occupied }}/{{ room.capacity }} beds)
-          {% elif room.available_beds <= 0 %}
-            (Full &mdash; {{ room.capacity }}/{{ room.capacity }})
+            (Current Room &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }} beds)
+          {% elif (room.available_beds or 0) <= 0 %}
+            (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }})
           {% else %}
-            ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available &mdash; {{ room.occupied }}/{{ room.capacity }})
+            ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }})
           {% endif %}
         </option>
         {% endfor %}

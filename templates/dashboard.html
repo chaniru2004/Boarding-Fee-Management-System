@@ -56,7 +56,7 @@
     <thead><tr><th>Resident</th><th>Room</th><th>Due</th><th>Paid</th><th>Balance</th><th>Status</th><th>Action</th></tr></thead>
     <tbody>
       {% for fee in fees %}
-      <tr>
+      <tr class="{% if fee.status == 'Paid' or (fee.amount_paid > 0 and fee.balance <= 0) %}row-paid{% elif fee.status == 'Part Paid' or fee.amount_paid > 0 %}row-part-paid{% endif %}">
         <td><strong>{{ fee.full_name }}</strong></td>
         <td>{{ fee.room_number or "-" }}</td>
         <td>Rs. {{ money(fee.amount_due) }}</td>

@@ -261,7 +261,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
             SELECT rooms.*,
                    COUNT(r.id) AS occupied,
-                   (rooms.capacity - COUNT(r.id)) AS available_beds
+                   (COALESCE(rooms.capacity, 1) - COUNT(r.id)) AS available_beds
             FROM rooms
             LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
             GROUP BY rooms.id
@@ -269,7 +269,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
         ).fetchall()
 
-        total_available_beds = sum(max(0, int(r["available_beds"])) for r in rooms)
+        total_available_beds = sum(max(0, int(r.get("available_beds") or 0)) for r in rooms)
 
         return render_template(
             "residents.html",
@@ -423,7 +423,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
             SELECT rooms.*,
                    COUNT(r.id) AS occupied,
-                   (rooms.capacity - COUNT(r.id)) AS available_beds
+                   (COALESCE(rooms.capacity, 1) - COUNT(r.id)) AS available_beds
             FROM rooms
             LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
             GROUP BY rooms.id
@@ -542,9 +542,15 @@ def create_app(test_config: dict | None = None) -> Flask:
     @app.route("/rooms/<int:room_id>/delete", methods=["POST"])
     def delete_room(room_id: int):
         room = get_one("SELECT * FROM rooms WHERE id = %s", (room_id,))
+        if not room:
+            flash("Room not found.", "warning")
+            return redirect(url_for("rooms"))
         with g.db.cursor() as cur:
             cur.execute("UPDATE residents SET room_id = NULL WHERE room_id = %s", (room_id,))
-            cur.execute("UPDATE residents SET previous_room_id = NULL WHERE previous_room_id = %s", (room_id,))
+            try:
+                cur.execute("UPDATE residents SET previous_room_id = NULL WHERE previous_room_id = %s", (room_id,))
+            except Exception:
+                pass
             cur.execute("DELETE FROM rooms WHERE id = %s", (room_id,))
         log_audit("DELETE", "rooms", str(room_id), room["room_number"], "Deleted room; unassigned associated residents")
         g.db.commit()
@@ -1196,9 +1202,6 @@ def init_db() -> None:
 
         db.commit()
 
-        cleanup_demo_data(db)
-        import_form_residents(db)
-        import_form_payments(db)
         ensure_monthly_fees_db(db, current_month())
 
 def cleanup_demo_data(db) -> None:
@@ -1811,19 +1814,22 @@ def ensure_monthly_fees(month: str) -> None:
     ensure_monthly_fees_db(g.db, month)
 
 def ensure_monthly_fees_db(db, month: str) -> None:
+    if not month or month == "all" or len(month.split("-")) != 2:
+        return
     with db.cursor() as cur:
         cur.execute("SELECT * FROM residents WHERE status = 'Active'")
         residents = cur.fetchall()
         due_day = 10
         due_date = f"{month}-{due_day:02d}"
         for resident in residents:
+            fee_amount = str(resident.get("monthly_fee") or "0")
             cur.execute(
                 """
                 INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
                 VALUES (%s, %s, %s, %s, %s, 'Unpaid')
                 ON CONFLICT (resident_id, month) DO NOTHING
                 """,
-                (resident["id"], month, due_date, "0", "0"),
+                (resident["id"], month, due_date, fee_amount, fee_amount),
             )
         db.commit()
 
@@ -1866,8 +1872,13 @@ def refresh_all_statuses(month: str) -> None:
     refresh_all_statuses_db(g.db, month)
 
 def refresh_all_statuses_db(db, month: str) -> None:
+    if not month:
+        return
     with db.cursor() as cur:
-        cur.execute("SELECT id FROM monthly_fees WHERE month = %s", (month,))
+        if month == "all":
+            cur.execute("SELECT id FROM monthly_fees")
+        else:
+            cur.execute("SELECT id FROM monthly_fees WHERE month = %s", (month,))
         rows = cur.fetchall()
         for row in rows:
             update_fee_status_db(db, row["id"])

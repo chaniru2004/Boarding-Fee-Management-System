@@ -66,10 +66,10 @@
       <select name="room_id">
         <option value="">No room</option>
         {% for room in rooms %}
-          {% if room.available_beds <= 0 %}
-            <option value="{{ room.id }}" style="color: #94a3b8;">{{ room.room_number }} (Full &mdash; {{ room.capacity }}/{{ room.capacity }})</option>
+          {% if (room.available_beds or 0) <= 0 %}
+            <option value="{{ room.id }}" style="color: #94a3b8;">{{ room.room_number }} (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }})</option>
           {% else %}
-            <option value="{{ room.id }}" style="font-weight: 600; color: #15803d;">{{ room.room_number }} ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available &mdash; {{ room.occupied }}/{{ room.capacity }})</option>
+            <option value="{{ room.id }}" style="font-weight: 600; color: #15803d;">{{ room.room_number }} ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }})</option>
           {% endif %}
         {% endfor %}
       </select>

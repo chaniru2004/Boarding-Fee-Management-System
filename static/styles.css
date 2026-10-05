@@ -294,6 +294,35 @@ tbody tr:hover {
   background: #fcfdfe;
 }
 
+/* Row highlight for completed/partial payments */
+tr.row-paid,
+tr.row-paid td {
+  background-color: #ecfdf5 !important;
+}
+
+tr.row-paid:hover,
+tr.row-paid:hover td {
+  background-color: #d1fae5 !important;
+}
+
+tr.row-paid td:first-child {
+  border-left: 4px solid #10b981;
+}
+
+tr.row-part-paid,
+tr.row-part-paid td {
+  background-color: #fffbeb !important;
+}
+
+tr.row-part-paid:hover,
+tr.row-part-paid:hover td {
+  background-color: #fef3c7 !important;
+}
+
+tr.row-part-paid td:first-child {
+  border-left: 4px solid #f59e0b;
+}
+
 /* Forms & Inputs */
 .form-grid {
   display: grid;
