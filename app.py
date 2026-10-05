@@ -186,14 +186,16 @@ def create_app(test_config: dict | None = None) -> Flask:
                 room_id = None
                 left_date = date.today().isoformat()
 
+            joined_date = request.form.get("joined_date") or date.today().isoformat()
+
             g.db.execute(
                 """
                 INSERT INTO residents (
                     full_name, phone, nic, date_of_birth, address, faculty,
                     guardian_name, guardian_phone, room_id, monthly_fee, status,
-                    left_date, previous_room_id
+                    left_date, previous_room_id, joined_date
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     request.form["full_name"].strip(),
@@ -209,6 +211,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     status,
                     left_date,
                     previous_room_id,
+                    joined_date,
                 ),
             )
 
@@ -394,12 +397,14 @@ def create_app(test_config: dict | None = None) -> Flask:
             elif new_status == "Active":
                 left_date = None
 
+            joined_date = request.form.get("joined_date") or resident.get("joined_date") or None
+
             g.db.execute(
                 """
                 UPDATE residents
                 SET full_name = %s, phone = %s, nic = %s, date_of_birth = %s, address = %s, faculty = %s,
                     guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s,
-                    left_date = %s, previous_room_id = %s
+                    left_date = %s, previous_room_id = %s, joined_date = %s
                 WHERE id = %s
                 """,
                 (
@@ -416,6 +421,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     new_status,
                     left_date,
                     previous_room_id,
+                    joined_date,
                     resident_id,
                 ),
             )
@@ -1114,7 +1120,9 @@ def init_db() -> None:
 
                 monthly_fee NUMERIC(12, 2) NOT NULL DEFAULT 0,
 
-                status TEXT NOT NULL DEFAULT 'Active'
+                status TEXT NOT NULL DEFAULT 'Active',
+
+                joined_date DATE
 
             );
 
@@ -1196,6 +1204,7 @@ def init_db() -> None:
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS faculty TEXT;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS left_date DATE;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS previous_room_id INTEGER;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS joined_date DATE;
             ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_month TEXT;
             UPDATE payments p
             SET payment_month = mf.month

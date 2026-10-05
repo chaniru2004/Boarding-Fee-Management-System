@@ -46,6 +46,10 @@
       <input name="date_of_birth" type="date">
     </div>
     <div>
+      <label class="field-label">Joined Date</label>
+      <input name="joined_date" type="date" value="{{ today }}">
+    </div>
+    <div>
       <label class="field-label">Faculty</label>
       <input name="faculty" placeholder="Faculty / Department">
     </div>
@@ -142,6 +146,7 @@
         <th>Name</th>
         <th>NIC</th>
         <th>Room</th>
+        <th>Joined Date</th>
         <th>Phone</th>
         <th>Faculty</th>
         <th>Monthly Fee</th>
@@ -161,6 +166,7 @@
             <span style="color: var(--muted); font-style: italic;">No room</span>
           {% endif %}
         </td>
+        <td>{{ resident.joined_date or "-" }}</td>
         <td>{{ resident.phone or "-" }}</td>
         <td>{{ resident.faculty or "-" }}</td>
         <td>Rs. {{ money(resident.monthly_fee) }}</td>
@@ -176,7 +182,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" style="color: var(--muted); text-align: center; padding: 24px;">No active residents found.</td></tr>
+      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No active residents found.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -203,6 +209,7 @@
         <th>Name</th>
         <th>NIC</th>
         <th>Vacated Room</th>
+        <th>Joined Date</th>
         <th>Departure Date</th>
         <th>Phone</th>
         <th>Faculty</th>
@@ -222,6 +229,7 @@
             <span class="badge" style="background: #f1f5f9; color: #475569; font-size: 11px; margin-left: 4px;">Prev: {{ resident.previous_room_number }}</span>
           {% endif %}
         </td>
+        <td>{{ resident.joined_date or "-" }}</td>
         <td>
           {% if resident.left_date %}
             <span style="font-size: 13px; color: #b45309; font-weight: 600;">{{ resident.left_date }}</span>
@@ -244,7 +252,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No members recorded as left yet.</td></tr>
+      <tr><td colspan="10" style="color: var(--muted); text-align: center; padding: 24px;">No members recorded as left yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -266,6 +274,7 @@
         <th>Name</th>
         <th>NIC</th>
         <th>Room</th>
+        <th>Joined Date</th>
         <th>Phone</th>
         <th>Faculty</th>
         <th>Monthly Fee</th>
@@ -279,6 +288,7 @@
         <td><strong>{{ resident.full_name }}</strong></td>
         <td>{{ resident.nic or "-" }}</td>
         <td><span style="color: var(--muted);">Vacated</span></td>
+        <td>{{ resident.joined_date or "-" }}</td>
         <td>{{ resident.phone or "-" }}</td>
         <td>{{ resident.faculty or "-" }}</td>
         <td>Rs. {{ money(resident.monthly_fee) }}</td>
@@ -294,7 +304,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" style="color: var(--muted); text-align: center; padding: 24px;">No inactive residents recorded.</td></tr>
+      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No inactive residents recorded.</td></tr>
       {% endfor %}
     </tbody>
   </table>
