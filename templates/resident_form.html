@@ -92,7 +92,7 @@
   <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
     When <strong>{{ resident.full_name }}</strong> leaves the boarding, click below to mark them as left. Their assigned room bed ({% if resident.room_number %}<strong>{{ resident.room_number }}</strong>{% else %}no room{% endif %}) will be immediately vacated so a new member can be assigned, while safely retaining all their payment and fee history.
   </p>
-  <form method="post" action="{{ url_for('mark_resident_left', resident_id=resident.id) }}" onsubmit="return confirm('Mark {{ resident.full_name }} as left the boarding? Room {{ resident.room_number or \'\' }} will be vacated immediately for new members.');">
+  <form method="post" action="{{ url_for('mark_resident_left', resident_id=resident.id) }}" onsubmit="return confirm('Mark {{ resident.full_name }} as left the boarding? Room will be vacated immediately for new members.');">
     <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
       <div>
         <label class="field-label">Departure Date</label>
@@ -119,8 +119,8 @@
         <select name="room_id" style="width: auto; min-width: 220px;">
           <option value="">No room</option>
           {% for room in rooms %}
-          {% if room.available_beds > 0 %}
-          <option value="{{ room.id }}">{{ room.room_number }} ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available)</option>
+          {% if (room.available_beds or 0) > 0 %}
+          <option value="{{ room.id }}">{{ room.room_number }} ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available)</option>
           {% endif %}
           {% endfor %}
         </select>

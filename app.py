@@ -271,10 +271,17 @@ def create_app(test_config: dict | None = None) -> Flask:
 
         total_available_beds = sum(max(0, int(r.get("available_beds") or 0)) for r in rooms)
 
+        active_residents = [r for r in rows if r["status"] == "Active"]
+        left_residents = [r for r in rows if r["status"] == "Left"]
+        inactive_residents = [r for r in rows if r["status"] == "Inactive"]
+
         return render_template(
             "residents.html",
             active="residents",
             residents=rows,
+            active_residents=active_residents,
+            left_residents=left_residents,
+            inactive_residents=inactive_residents,
             rooms=rooms,
             status_filter=status_filter,
             counts=counts,
