@@ -44,12 +44,24 @@
     </div>
     <div>
       <label class="field-label">Room</label>
-      <select name="room_id">
+      <select name="room_id" id="roomSelect">
         <option value="">No room</option>
         {% for room in rooms %}
-        <option value="{{ room.id }}" {{ 'selected' if resident.room_id == room.id else '' }}>{{ room.room_number }}</option>
+        <option value="{{ room.id }}" {{ 'selected' if resident.room_id == room.id else '' }}>
+          {{ room.room_number }}
+          {% if resident.room_id == room.id %}
+            (Current Room &mdash; {{ room.occupied }}/{{ room.capacity }} beds)
+          {% elif room.available_beds <= 0 %}
+            (Full &mdash; {{ room.capacity }}/{{ room.capacity }})
+          {% else %}
+            ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available &mdash; {{ room.occupied }}/{{ room.capacity }})
+          {% endif %}
+        </option>
         {% endfor %}
       </select>
+      {% if resident.status == 'Left' and resident.previous_room_number %}
+      <p style="font-size: 12px; color: var(--muted); margin: 4px 0 0;">Previously occupied: <strong>{{ resident.previous_room_number }}</strong> (vacated)</p>
+      {% endif %}
     </div>
     <div>
       <label class="field-label">Monthly Fee (Rs.)</label>
@@ -57,24 +69,90 @@
     </div>
     <div>
       <label class="field-label">Status</label>
-      <select name="status">
-        {% for status in ["Active", "Inactive"] %}
-        <option {{ 'selected' if resident.status == status else '' }}>{{ status }}</option>
+      <select name="status" id="residentStatus" onchange="handleStatusChange()">
+        {% for s in ["Active", "Left", "Inactive"] %}
+        <option value="{{ s }}" {{ 'selected' if resident.status == s else '' }}>
+          {% if s == 'Left' %}Left Boarding (Vacate Room){% else %}{{ s }}{% endif %}
+        </option>
         {% endfor %}
       </select>
     </div>
+    <div id="leftDateField" style="{{ 'display: block;' if resident.status == 'Left' else 'display: none;' }}">
+      <label class="field-label">Departure Date</label>
+      <input name="left_date" type="date" value="{{ resident.left_date or today }}">
+    </div>
   </div>
-  <button type="submit">Update Resident</button>
+  <button type="submit" style="margin-top: 18px;">Update Resident</button>
 </form>
+
+{% if resident.status == 'Active' %}
+<section class="panel" style="margin-top: 24px; border-left: 4px solid #f59e0b; background: #fffdf5;">
+  <p class="eyebrow" style="color: #b45309;">Resident Departure</p>
+  <h3 style="margin-top: 0; margin-bottom: 8px;">Mark as Left the Boarding</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    When <strong>{{ resident.full_name }}</strong> leaves the boarding, click below to mark them as left. Their assigned room bed ({% if resident.room_number %}<strong>{{ resident.room_number }}</strong>{% else %}no room{% endif %}) will be immediately vacated so a new member can be assigned, while safely retaining all their payment and fee history.
+  </p>
+  <form method="post" action="{{ url_for('mark_resident_left', resident_id=resident.id) }}" onsubmit="return confirm('Mark {{ resident.full_name }} as left the boarding? Room {{ resident.room_number or \'\' }} will be vacated immediately for new members.');">
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div>
+        <label class="field-label">Departure Date</label>
+        <input name="left_date" type="date" value="{{ today }}" style="width: auto;">
+      </div>
+      <button type="submit" class="button-warning">Mark as Left Boarding (Vacate Room)</button>
+    </div>
+  </form>
+</section>
+{% else %}
+<section class="panel" style="margin-top: 24px; border-left: 4px solid #10b981; background: #f0fdf4;">
+  <p class="eyebrow" style="color: #047857;">Return / Rejoin</p>
+  <h3 style="margin-top: 0; margin-bottom: 8px;">Reactivate Resident</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    {% if resident.previous_room_number %}
+      This resident previously vacated <strong>{{ resident.previous_room_number }}</strong> on {{ resident.left_date or 'a previous date' }}.
+    {% endif %}
+    If they are returning to the boarding, you can reactivate them and assign them to an available room bed.
+  </p>
+  <form method="post" action="{{ url_for('reactivate_resident', resident_id=resident.id) }}">
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div>
+        <label class="field-label">Assign Room</label>
+        <select name="room_id" style="width: auto; min-width: 220px;">
+          <option value="">No room</option>
+          {% for room in rooms %}
+          {% if room.available_beds > 0 %}
+          <option value="{{ room.id }}">{{ room.room_number }} ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available)</option>
+          {% endif %}
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="button-success">Reactivate as Active Resident</button>
+    </div>
+  </form>
+</section>
+{% endif %}
 
 <section class="danger-panel" style="margin-top: 24px;">
   <p class="eyebrow" style="color: var(--warn);">Danger Zone</p>
-  <h3>Delete Resident</h3>
+  <h3>Permanently Delete Resident</h3>
   <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
-    Safely delete this resident. All associated monthly fee records and payment history will also be removed without database errors.
+    Permanently delete this resident and completely erase all their payment history and monthly fee records. (Only use this for mistakes or test records. For members who have left the boarding, use <strong>Mark as Left Boarding</strong> above instead to preserve financial records).
   </p>
-  <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
-    <button type="submit" class="button-danger">Delete Resident</button>
+  <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" onsubmit="return confirm('Are you sure you want to permanently delete {{ resident.full_name }}? All related monthly fees and payment records will also be erased.');">
+    <button type="submit" class="button-danger">Permanently Delete Resident</button>
   </form>
 </section>
+
+<script>
+function handleStatusChange() {
+  const status = document.getElementById('residentStatus').value;
+  const leftDateField = document.getElementById('leftDateField');
+  const roomSelect = document.getElementById('roomSelect');
+  if (status === 'Left') {
+    leftDateField.style.display = 'block';
+    if (roomSelect) roomSelect.value = '';
+  } else {
+    leftDateField.style.display = 'none';
+  }
+}
+</script>
 {% endblock %}

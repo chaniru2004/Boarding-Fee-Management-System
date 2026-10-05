@@ -17,11 +17,7 @@
     </div>
     <div>
       <label class="field-label">Payment Month</label>
-      <select name="payment_month" required>
-        {% for opt in month_options %}
-        <option value="{{ opt.value }}" {% if (payment.payment_month or payment.month) == opt.value %}selected{% endif %}>{{ opt.label }}</option>
-        {% endfor %}
-      </select>
+      <input name="payment_month" type="month" value="{{ payment.payment_month or payment.month }}" required>
     </div>
     <div>
       <label class="field-label">Amount (Rs.)</label>

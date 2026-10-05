@@ -38,7 +38,8 @@
         <th>Room</th>
         <th>Floor</th>
         <th>Capacity</th>
-        <th>Occupied</th>
+        <th>Occupancy</th>
+        <th>Current Occupants</th>
         <th>Notes</th>
         <th>Actions</th>
       </tr>
@@ -52,7 +53,19 @@
         <td>
           <span class="badge {{ 'badge-overdue' if room.occupied >= room.capacity else 'badge-active' }}">
             {{ room.occupied }} / {{ room.capacity }}
+            {% if room.occupied >= room.capacity %}
+              (Full)
+            {% else %}
+              ({{ room.capacity - room.occupied }} free)
+            {% endif %}
           </span>
+        </td>
+        <td>
+          {% if room.occupants %}
+            <span style="font-size: 13px; font-weight: 500;">{{ room.occupants }}</span>
+          {% else %}
+            <span style="color: var(--muted); font-size: 13px; font-style: italic;">Vacant &mdash; {{ room.capacity }} bed{{ 's' if room.capacity > 1 else '' }} available</span>
+          {% endif %}
         </td>
         <td>{{ room.notes or "-" }}</td>
         <td class="actions-cell">
@@ -63,7 +76,7 @@
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="6" style="color: var(--muted); text-align: center; padding: 24px;">No rooms registered yet.</td></tr>
+      <tr><td colspan="7" style="color: var(--muted); text-align: center; padding: 24px;">No rooms registered yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

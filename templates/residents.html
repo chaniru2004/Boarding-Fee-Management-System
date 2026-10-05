@@ -7,6 +7,25 @@
   </div>
 </section>
 
+<section class="stats">
+  <article>
+    <span>Total Registered</span>
+    <strong>{{ counts.total }}</strong>
+  </article>
+  <article>
+    <span>Active Members</span>
+    <strong style="color: #15803d;">{{ counts.active_count }}</strong>
+  </article>
+  <article>
+    <span>Left Boarding</span>
+    <strong style="color: #b45309;">{{ counts.left_count }}</strong>
+  </article>
+  <article>
+    <span>Available Beds</span>
+    <strong style="color: #0284c7;">{{ total_available_beds }}</strong>
+  </article>
+</section>
+
 <form class="panel" method="post">
   <h3 style="margin-top: 0; margin-bottom: 16px;">Add New Resident</h3>
   <div class="form-grid">
@@ -47,7 +66,11 @@
       <select name="room_id">
         <option value="">No room</option>
         {% for room in rooms %}
-        <option value="{{ room.id }}">{{ room.room_number }}</option>
+          {% if room.available_beds <= 0 %}
+            <option value="{{ room.id }}" style="color: #94a3b8;">{{ room.room_number }} (Full &mdash; {{ room.capacity }}/{{ room.capacity }})</option>
+          {% else %}
+            <option value="{{ room.id }}" style="font-weight: 600; color: #15803d;">{{ room.room_number }} ({{ room.available_beds }} bed{{ 's' if room.available_beds > 1 else '' }} available &mdash; {{ room.occupied }}/{{ room.capacity }})</option>
+          {% endif %}
         {% endfor %}
       </select>
     </div>
@@ -58,17 +81,54 @@
     <div>
       <label class="field-label">Status</label>
       <select name="status">
-        <option>Active</option>
-        <option>Inactive</option>
+        <option value="Active">Active</option>
+        <option value="Left">Left Boarding</option>
+        <option value="Inactive">Inactive</option>
       </select>
     </div>
   </div>
   <button type="submit">Save Resident</button>
 </form>
 
-<h3>Resident Directory</h3>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-top: 32px; margin-bottom: 14px; flex-wrap: wrap; gap: 12px;">
+  <div>
+    <h3 style="margin: 0;">Resident Directory</h3>
+    <span style="font-size: 13px; color: var(--muted);">
+      {% if status_filter == 'Active' %}
+        Showing <strong>Active Members</strong> ({{ counts.active_count }})
+      {% elif status_filter == 'Left' %}
+        Showing <strong>Left Boarding / Previous Members</strong> ({{ counts.left_count }})
+      {% elif status_filter == 'Inactive' %}
+        Showing <strong>Inactive Residents</strong> ({{ counts.inactive_count }})
+      {% else %}
+        Showing <strong>All Residents</strong> ({{ counts.total }})
+      {% endif %}
+    </span>
+  </div>
+  <div>
+    <input type="text" id="residentSearch" placeholder="Search name, NIC, room..." onkeyup="filterResidentsTable()" style="height: 36px; padding: 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); font-size: 13px; width: 250px; max-width: 100%;">
+  </div>
+</div>
+
+<div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+  <a href="{{ url_for('residents', status='all') }}" class="tab-btn {{ 'active' if status_filter == 'all' else '' }}">
+    All Residents ({{ counts.total }})
+  </a>
+  <a href="{{ url_for('residents', status='Active') }}" class="tab-btn {{ 'active' if status_filter == 'Active' else '' }}">
+    Active Members ({{ counts.active_count }})
+  </a>
+  <a href="{{ url_for('residents', status='Left') }}" class="tab-btn {{ 'active' if status_filter == 'Left' else '' }}">
+    Left Boarding ({{ counts.left_count }})
+  </a>
+  {% if counts.inactive_count > 0 %}
+  <a href="{{ url_for('residents', status='Inactive') }}" class="tab-btn {{ 'active' if status_filter == 'Inactive' else '' }}">
+    Inactive ({{ counts.inactive_count }})
+  </a>
+  {% endif %}
+</div>
+
 <div class="table-container">
-  <table>
+  <table id="residentsTable">
     <thead>
       <tr>
         <th>Name</th>
@@ -86,22 +146,64 @@
       <tr>
         <td><strong>{{ resident.full_name }}</strong></td>
         <td>{{ resident.nic or "-" }}</td>
-        <td>{{ resident.room_number or "-" }}</td>
+        <td>
+          {% if resident.status == 'Active' and resident.room_number %}
+            <span class="badge badge-active">{{ resident.room_number }}</span>
+          {% elif resident.status == 'Active' %}
+            <span style="color: var(--muted); font-style: italic;">No room</span>
+          {% else %}
+            <span style="color: var(--muted); font-weight: 500;">Vacated</span>
+            {% if resident.previous_room_number %}
+              <small style="display: block; font-size: 11px; color: var(--muted); margin-top: 2px;">(Prev: {{ resident.previous_room_number }})</small>
+            {% endif %}
+          {% endif %}
+        </td>
         <td>{{ resident.phone or "-" }}</td>
         <td>{{ resident.faculty or "-" }}</td>
         <td>Rs. {{ money(resident.monthly_fee) }}</td>
-        <td><span class="badge badge-{{ (resident.status or '')|lower }}">{{ resident.status }}</span></td>
+        <td>
+          {% if resident.status == 'Active' %}
+            <span class="badge badge-active">Active</span>
+          {% elif resident.status == 'Left' %}
+            <span class="badge badge-left">Left Boarding</span>
+            {% if resident.left_date %}
+              <small style="display: block; font-size: 10px; color: #b45309; margin-top: 2px;">{{ resident.left_date }}</small>
+            {% endif %}
+          {% else %}
+            <span class="badge badge-inactive">{{ resident.status }}</span>
+          {% endif %}
+        </td>
         <td class="actions-cell">
           <a class="button-link button-sm" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a>
-          <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
-            <button type="submit" class="button-danger button-sm">Delete</button>
+          {% if resident.status == 'Active' %}
+            <form method="post" action="{{ url_for('mark_resident_left', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Mark {{ resident.full_name }} as left the boarding? Their room bed will be vacated immediately for new members while preserving their payment and fee history.');">
+              <button type="submit" class="button-warning button-sm" title="Mark as Left Boarding and vacate room">Mark as Left</button>
+            </form>
+          {% else %}
+            <form method="post" action="{{ url_for('reactivate_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Reactivate {{ resident.full_name }} as an Active resident?');">
+              <button type="submit" class="button-success button-sm" title="Reactivate as Active resident">Reactivate</button>
+            </form>
+          {% endif %}
+          <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to permanently delete {{ resident.full_name }}? All related monthly fees and payment records will also be safely removed.');">
+            <button type="submit" class="button-danger button-sm" title="Delete resident">Delete</button>
           </form>
         </td>
       </tr>
       {% else %}
-      <tr><td colspan="8" style="color: var(--muted);">No residents recorded yet.</td></tr>
+      <tr><td colspan="8" style="color: var(--muted); text-align: center; padding: 24px;">No residents recorded {% if status_filter != 'all' %}for status &lsquo;{{ status_filter }}&rsquo;{% endif %}.</td></tr>
       {% endfor %}
     </tbody>
   </table>
 </div>
+
+<script>
+function filterResidentsTable() {
+  const q = document.getElementById('residentSearch').value.toLowerCase();
+  const rows = document.querySelectorAll('#residentsTable tbody tr');
+  rows.forEach(tr => {
+    const text = tr.innerText.toLowerCase();
+    tr.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+</script>
 {% endblock %}

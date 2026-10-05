@@ -381,6 +381,40 @@ button:active, .button-link:active {
   background: var(--warn-hover);
 }
 
+.button-warning {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+}
+
+.button-warning:hover {
+  background: #fde68a;
+  color: #78350f;
+}
+
+.button-success {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.button-success:hover {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+.button-outline {
+  background: white;
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.button-outline:hover {
+  background: #f8fafc;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
 .button-sm {
   min-height: 32px;
   padding: 5px 11px;
@@ -474,6 +508,40 @@ button:active, .button-link:active {
   background: #f1f5f9;
   color: #64748b;
   border-color: #e2e8f0;
+}
+
+.badge-left, .badge.left {
+  background: #fffbeb;
+  color: #b45309;
+  border-color: #fde68a;
+}
+
+.tab-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--line);
+  background: white;
+  color: var(--muted);
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  background: #f8fafc;
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.tab-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
 }
 
 /* Danger Panel */

@@ -177,14 +177,23 @@ def create_app(test_config: dict | None = None) -> Flask:
     def residents():
 
         if request.method == "POST":
+            status = request.form.get("status", "Active")
+            room_id = value_or_none(request.form.get("room_id"))
+            previous_room_id = None
+            left_date = None
+            if status == "Left":
+                previous_room_id = room_id
+                room_id = None
+                left_date = date.today().isoformat()
 
             g.db.execute(
                 """
                 INSERT INTO residents (
                     full_name, phone, nic, date_of_birth, address, faculty,
-                    guardian_name, guardian_phone, room_id, monthly_fee, status
+                    guardian_name, guardian_phone, room_id, monthly_fee, status,
+                    left_date, previous_room_id
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     request.form["full_name"].strip(),
@@ -195,9 +204,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                     request.form.get("faculty", "").strip(),
                     request.form.get("guardian_name", "").strip(),
                     request.form.get("guardian_phone", "").strip(),
-                    value_or_none(request.form.get("room_id")),
+                    room_id,
                     decimal_string(request.form.get("monthly_fee", "0")),
-                    request.form.get("status", "Active"),
+                    status,
+                    left_date,
+                    previous_room_id,
                 ),
             )
 
@@ -207,39 +218,181 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             return redirect(url_for("residents"))
 
+        status_filter = request.args.get("status", "all")
+        where_clause = ""
+        params = []
+        if status_filter != "all":
+            where_clause = "WHERE r.status = %s"
+            params.append(status_filter)
+
         rows = g.db.execute(
-
-            """
-
-            SELECT r.*, rooms.room_number
-
+            f"""
+            SELECT r.*,
+                   rooms.room_number,
+                   prev_rooms.room_number AS previous_room_number
             FROM residents r
-
             LEFT JOIN rooms ON rooms.id = r.room_id
-
-            ORDER BY r.status, r.full_name
-
-            """
-
+            LEFT JOIN rooms prev_rooms ON prev_rooms.id = r.previous_room_id
+            {where_clause}
+            ORDER BY
+                CASE
+                    WHEN r.status = 'Active' THEN 1
+                    WHEN r.status = 'Left' THEN 2
+                    WHEN r.status = 'Inactive' THEN 3
+                    ELSE 4
+                END,
+                r.full_name
+            """,
+            tuple(params),
         ).fetchall()
 
-        rooms = g.db.execute("SELECT * FROM rooms ORDER BY room_number").fetchall()
+        counts = g.db.execute(
+            """
+            SELECT
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE status = 'Active') AS active_count,
+                COUNT(*) FILTER (WHERE status = 'Left') AS left_count,
+                COUNT(*) FILTER (WHERE status = 'Inactive') AS inactive_count
+            FROM residents
+            """
+        ).fetchone()
 
-        return render_template("residents.html", active="residents", residents=rows, rooms=rooms)
+        rooms = g.db.execute(
+            """
+            SELECT rooms.*,
+                   COUNT(r.id) AS occupied,
+                   (rooms.capacity - COUNT(r.id)) AS available_beds
+            FROM rooms
+            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
+            GROUP BY rooms.id
+            ORDER BY rooms.room_number
+            """
+        ).fetchall()
+
+        total_available_beds = sum(max(0, int(r["available_beds"])) for r in rooms)
+
+        return render_template(
+            "residents.html",
+            active="residents",
+            residents=rows,
+            rooms=rooms,
+            status_filter=status_filter,
+            counts=counts,
+            total_available_beds=total_available_beds,
+        )
+
+    @app.route("/residents/<int:resident_id>/leave", methods=["POST"])
+    def mark_resident_left(resident_id: int):
+        resident = get_one(
+            """
+            SELECT r.*, rooms.room_number
+            FROM residents r
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            WHERE r.id = %s
+            """,
+            (resident_id,),
+        )
+        room_id = resident.get("room_id")
+        room_number = resident.get("room_number") or "No room"
+        left_date = request.form.get("left_date") or date.today().isoformat()
+
+        g.db.execute(
+            """
+            UPDATE residents
+            SET status = 'Left',
+                previous_room_id = COALESCE(room_id, previous_room_id),
+                room_id = NULL,
+                left_date = %s
+            WHERE id = %s
+            """,
+            (left_date, resident_id),
+        )
+        log_audit(
+            "UPDATE",
+            "residents",
+            str(resident_id),
+            f"Active in {room_number}",
+            f"Marked as Left boarding on {left_date}; room {room_number} vacated",
+        )
+        g.db.commit()
+        if room_id:
+            flash(
+                f"Resident '{resident['full_name']}' was marked as Left Boarding. "
+                f"Room '{room_number}' has been vacated and is now ready for new members.",
+                "success",
+            )
+        else:
+            flash(
+                f"Resident '{resident['full_name']}' was marked as Left Boarding.",
+                "success",
+            )
+        return redirect(url_for("residents"))
+
+    @app.route("/residents/<int:resident_id>/reactivate", methods=["POST"])
+    def reactivate_resident(resident_id: int):
+        resident = get_one("SELECT * FROM residents WHERE id = %s", (resident_id,))
+        room_id = value_or_none(request.form.get("room_id"))
+        g.db.execute(
+            """
+            UPDATE residents
+            SET status = 'Active',
+                room_id = %s,
+                left_date = NULL
+            WHERE id = %s
+            """,
+            (room_id, resident_id),
+        )
+        log_audit(
+            "UPDATE",
+            "residents",
+            str(resident_id),
+            resident.get("status") or "Left",
+            f"Reactivated resident '{resident['full_name']}' as Active",
+        )
+        g.db.commit()
+        flash(f"Resident '{resident['full_name']}' was reactivated as an Active member.", "success")
+        return redirect(url_for("residents"))
 
     @app.route("/residents/<int:resident_id>/edit", methods=["GET", "POST"])
 
     def edit_resident(resident_id: int):
 
-        resident = get_one("SELECT * FROM residents WHERE id = %s", (resident_id,))
+        resident = get_one(
+            """
+            SELECT r.*,
+                   rooms.room_number,
+                   prev_rooms.room_number AS previous_room_number
+            FROM residents r
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            LEFT JOIN rooms prev_rooms ON prev_rooms.id = r.previous_room_id
+            WHERE r.id = %s
+            """,
+            (resident_id,),
+        )
 
         if request.method == "POST":
+            new_status = request.form.get("status", "Active")
+            room_id = value_or_none(request.form.get("room_id"))
+            left_date = request.form.get("left_date") or None
+            previous_room_id = resident.get("previous_room_id")
+
+            if new_status == "Left":
+                if room_id:
+                    previous_room_id = room_id
+                elif resident.get("room_id"):
+                    previous_room_id = resident["room_id"]
+                room_id = None
+                if not left_date:
+                    left_date = resident.get("left_date") or date.today().isoformat()
+            elif new_status == "Active":
+                left_date = None
 
             g.db.execute(
                 """
                 UPDATE residents
                 SET full_name = %s, phone = %s, nic = %s, date_of_birth = %s, address = %s, faculty = %s,
-                    guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s
+                    guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s,
+                    left_date = %s, previous_room_id = %s
                 WHERE id = %s
                 """,
                 (
@@ -251,9 +404,11 @@ def create_app(test_config: dict | None = None) -> Flask:
                     request.form.get("faculty", "").strip(),
                     request.form.get("guardian_name", "").strip(),
                     request.form.get("guardian_phone", "").strip(),
-                    value_or_none(request.form.get("room_id")),
+                    room_id,
                     decimal_string(request.form.get("monthly_fee", "0")),
-                    request.form.get("status", "Active"),
+                    new_status,
+                    left_date,
+                    previous_room_id,
                     resident_id,
                 ),
             )
@@ -264,7 +419,17 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             return redirect(url_for("residents"))
 
-        rooms = g.db.execute("SELECT * FROM rooms ORDER BY room_number").fetchall()
+        rooms = g.db.execute(
+            """
+            SELECT rooms.*,
+                   COUNT(r.id) AS occupied,
+                   (rooms.capacity - COUNT(r.id)) AS available_beds
+            FROM rooms
+            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
+            GROUP BY rooms.id
+            ORDER BY rooms.room_number
+            """
+        ).fetchall()
 
         return render_template("resident_form.html", active="residents", resident=resident, rooms=rooms)
 
@@ -334,21 +499,15 @@ def create_app(test_config: dict | None = None) -> Flask:
             return redirect(url_for("rooms"))
 
         rows = g.db.execute(
-
             """
-
-            SELECT rooms.*, COUNT(residents.id) AS occupied
-
+            SELECT rooms.*,
+                   COUNT(residents.id) AS occupied,
+                   STRING_AGG(CASE WHEN residents.status = 'Active' THEN residents.full_name ELSE NULL END, ', ' ORDER BY residents.full_name) AS occupants
             FROM rooms
-
             LEFT JOIN residents ON residents.room_id = rooms.id AND residents.status = 'Active'
-
             GROUP BY rooms.id
-
             ORDER BY rooms.room_number
-
             """
-
         ).fetchall()
 
         return render_template("rooms.html", active="rooms", rooms=rows)
@@ -385,6 +544,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         room = get_one("SELECT * FROM rooms WHERE id = %s", (room_id,))
         with g.db.cursor() as cur:
             cur.execute("UPDATE residents SET room_id = NULL WHERE room_id = %s", (room_id,))
+            cur.execute("UPDATE residents SET previous_room_id = NULL WHERE previous_room_id = %s", (room_id,))
             cur.execute("DELETE FROM rooms WHERE id = %s", (room_id,))
         log_audit("DELETE", "rooms", str(room_id), room["room_number"], "Deleted room; unassigned associated residents")
         g.db.commit()
@@ -574,11 +734,15 @@ def create_app(test_config: dict | None = None) -> Flask:
         history = payment_history(month)
         active_residents = g.db.execute(
             """
-            SELECT r.id, r.full_name, r.monthly_fee, rooms.room_number
+            SELECT r.id, r.full_name, r.monthly_fee, rooms.room_number, r.status
             FROM residents r
             LEFT JOIN rooms ON rooms.id = r.room_id
-            WHERE r.status = 'Active'
-            ORDER BY r.full_name
+            WHERE r.status = 'Active' OR EXISTS (
+                SELECT 1 FROM monthly_fees mf WHERE mf.resident_id = r.id AND mf.balance > 0
+            )
+            ORDER BY
+                CASE WHEN r.status = 'Active' THEN 1 ELSE 2 END,
+                r.full_name
             """
         ).fetchall()
         fees_data = fee_rows(month if month != "all" else current_month())
@@ -1017,6 +1181,8 @@ def init_db() -> None:
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS date_of_birth DATE;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS address TEXT;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS faculty TEXT;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS left_date DATE;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS previous_room_id INTEGER;
             ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_month TEXT;
             UPDATE payments p
             SET payment_month = mf.month
@@ -1315,7 +1481,6 @@ def import_form_residents(db) -> None:
             existing = cur.fetchone()
 
             if existing:
-                assigned_room_id = existing["room_id"] or room_id
                 cur.execute(
                     """
                     UPDATE residents
@@ -1327,9 +1492,7 @@ def import_form_residents(db) -> None:
                         faculty = %s,
                         guardian_name = %s,
                         guardian_phone = %s,
-                        room_id = %s,
-                        monthly_fee = %s,
-                        status = 'Active'
+                        monthly_fee = %s
                     WHERE id = %s
                     """,
                     (
@@ -1341,7 +1504,6 @@ def import_form_residents(db) -> None:
                         r["faculty"],
                         r["guardian_name"],
                         r["guardian_phone"],
-                        assigned_room_id,
                         r["monthly_fee"],
                         existing["id"],
                     ),
