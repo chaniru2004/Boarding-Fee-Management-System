@@ -12,7 +12,13 @@
   <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 16px;">
     <div>
       <span class="eyebrow">Official Receipt</span>
-      <h3 style="margin: 0; font-size: 20px;">Boarding Fee Payment</h3>
+      <h3 style="margin: 0; font-size: 20px;">
+        {% if payment.payment_month == 'Admission Fee' or payment.month == 'Admission' %}
+          Admission Fee Payment
+        {% else %}
+          Boarding Fee Payment
+        {% endif %}
+      </h3>
     </div>
     <span class="badge badge-active">Confirmed</span>
   </div>
@@ -21,7 +27,7 @@
     <dt>Receipt Number</dt><dd><strong>{{ payment.receipt_number }}</strong></dd>
     <dt>Resident Name</dt><dd>{{ payment.full_name }}</dd>
     <dt>Room</dt><dd>{{ payment.room_number or "-" }}</dd>
-    <dt>Payment Month</dt><dd><strong>{{ payment.payment_month or payment.month }}</strong></dd>
+    <dt>Payment For</dt><dd><strong>{{ payment.payment_month or payment.month }}</strong></dd>
     <dt>Amount Paid</dt><dd><strong style="color: var(--accent); font-size: 16px;">Rs. {{ money(payment.amount) }}</strong></dd>
     <dt>Payment Method</dt><dd>{{ payment.payment_method }}</dd>
     <dt>Reference / Bank</dt><dd>{{ payment.transaction_reference or payment.bank_name or "-" }}</dd>

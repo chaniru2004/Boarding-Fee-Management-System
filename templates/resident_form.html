@@ -54,18 +54,40 @@
         <option value="{{ room.id }}" {{ 'selected' if resident.room_id == room.id else '' }}>
           {{ room.room_number }}
           {% if resident.room_id == room.id %}
-            (Current Room &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }} beds)
+            ({% if resident.status == 'Soon to Arrive' %}Booked Room{% else %}Current Room{% endif %} &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }} beds)
           {% elif (room.available_beds or 0) <= 0 %}
-            (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }})
+            (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }}: {{ room.active_count or 0 }} active{% if room.booked_count %}, {{ room.booked_count }} booked{% endif %})
           {% else %}
-            ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }})
+            ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.capacity or 1 }} total{% if room.booked_count %}, {{ room.booked_count }} booked{% endif %})
           {% endif %}
         </option>
         {% endfor %}
       </select>
       {% if resident.status == 'Left' and resident.previous_room_number %}
       <p style="font-size: 12px; color: var(--muted); margin: 4px 0 0;">Previously occupied: <strong>{{ resident.previous_room_number }}</strong> (vacated)</p>
+      {% elif resident.status == 'Soon to Arrive' and resident.room_number %}
+      <p style="font-size: 12px; color: #0284c7; margin: 4px 0 0;">Currently booked: <strong>{{ resident.room_number }}</strong> (reserved for arrival)</p>
       {% endif %}
+    </div>
+    <div id="expectedArrivalField" style="{{ 'display: block;' if resident.status == 'Soon to Arrive' else 'display: none;' }}">
+      <label class="field-label">Expected Arrival Date</label>
+      <input name="expected_arrival_date" type="date" value="{{ resident.expected_arrival_date or '' }}">
+    </div>
+    <div>
+      <label class="field-label">Admission Fee (Rs.)</label>
+      <input name="admission_fee" type="number" step="0.01" value="{{ resident.admission_fee or 0 }}">
+    </div>
+    <div>
+      <label class="field-label">Admission Fee Paid (Rs.)</label>
+      <input name="admission_fee_paid" type="number" step="0.01" value="{{ resident.admission_fee_paid or 0 }}">
+    </div>
+    <div>
+      <label class="field-label">Admission Fee Status</label>
+      <select name="admission_fee_status">
+        <option value="Unpaid" {{ 'selected' if (resident.admission_fee_status or 'Unpaid') == 'Unpaid' else '' }}>Unpaid</option>
+        <option value="Part Paid" {{ 'selected' if resident.admission_fee_status == 'Part Paid' else '' }}>Part Paid</option>
+        <option value="Paid" {{ 'selected' if resident.admission_fee_status == 'Paid' else '' }}>Paid</option>
+      </select>
     </div>
     <div>
       <label class="field-label">Monthly Fee (Rs.)</label>
@@ -74,9 +96,9 @@
     <div>
       <label class="field-label">Status</label>
       <select name="status" id="residentStatus" onchange="handleStatusChange()">
-        {% for s in ["Active", "Left", "Inactive"] %}
+        {% for s in ["Active", "Soon to Arrive", "Left", "Inactive"] %}
         <option value="{{ s }}" {{ 'selected' if resident.status == s else '' }}>
-          {% if s == 'Left' %}Left Boarding (Vacate Room){% else %}{{ s }}{% endif %}
+          {% if s == 'Left' %}Left Boarding (Vacate Room){% elif s == 'Soon to Arrive' %}Soon to Arrive (Book Room){% else %}{{ s }}{% endif %}
         </option>
         {% endfor %}
       </select>
@@ -103,6 +125,24 @@
         <input name="left_date" type="date" value="{{ today }}" style="width: auto;">
       </div>
       <button type="submit" class="button-warning">Mark as Left Boarding (Vacate Room)</button>
+    </div>
+  </form>
+</section>
+{% elif resident.status == 'Soon to Arrive' %}
+<section class="panel" style="margin-top: 24px; border-left: 4px solid #0284c7; background: #f0f9ff;">
+  <p class="eyebrow" style="color: #0369a1;">Arrival & Check-in</p>
+  <h3 style="margin-top: 0; margin-bottom: 8px;">Check In Resident</h3>
+  <p style="color: var(--muted); font-size: 14px; margin-bottom: 14px;">
+    When <strong>{{ resident.full_name }}</strong> arrives at the boarding, click below to check them in as an <strong>Active member</strong>.
+    Their booked room ({% if resident.room_number %}<strong>{{ resident.room_number }}</strong>{% else %}no room{% endif %}) will become their active room, and regular monthly fee tracking will begin.
+  </p>
+  <form method="post" action="{{ url_for('check_in_resident', resident_id=resident.id) }}" onsubmit="return confirm('Check in {{ resident.full_name }} as an Active resident?');">
+    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
+      <div>
+        <label class="field-label">Check-in / Joined Date</label>
+        <input name="joined_date" type="date" value="{{ today }}" style="width: auto;">
+      </div>
+      <button type="submit" class="button-success">Check In as Active Resident</button>
     </div>
   </form>
 </section>
@@ -150,12 +190,18 @@
 function handleStatusChange() {
   const status = document.getElementById('residentStatus').value;
   const leftDateField = document.getElementById('leftDateField');
+  const arrivalField = document.getElementById('expectedArrivalField');
   const roomSelect = document.getElementById('roomSelect');
   if (status === 'Left') {
-    leftDateField.style.display = 'block';
+    if (leftDateField) leftDateField.style.display = 'block';
+    if (arrivalField) arrivalField.style.display = 'none';
     if (roomSelect) roomSelect.value = '';
+  } else if (status === 'Soon to Arrive') {
+    if (leftDateField) leftDateField.style.display = 'none';
+    if (arrivalField) arrivalField.style.display = 'block';
   } else {
-    leftDateField.style.display = 'none';
+    if (leftDateField) leftDateField.style.display = 'none';
+    if (arrivalField) arrivalField.style.display = 'none';
   }
 }
 </script>

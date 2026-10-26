@@ -17,12 +17,16 @@
     <strong style="color: #15803d;">{{ counts.active_count }}</strong>
   </article>
   <article>
+    <span>Soon to Arrive</span>
+    <strong style="color: #0284c7;">{{ counts.soon_count or 0 }}</strong>
+  </article>
+  <article>
     <span>Left Boarding</span>
     <strong style="color: #b45309;">{{ counts.left_count }}</strong>
   </article>
   <article>
     <span>Available Beds</span>
-    <strong style="color: #0284c7;">{{ total_available_beds }}</strong>
+    <strong style="color: #7c3aed;">{{ total_available_beds }}</strong>
   </article>
 </section>
 
@@ -49,6 +53,10 @@
       <label class="field-label">Joined Date</label>
       <input name="joined_date" type="date" value="{{ today }}">
     </div>
+    <div id="addExpectedArrivalField" style="display: none;">
+      <label class="field-label">Expected Arrival Date</label>
+      <input name="expected_arrival_date" type="date">
+    </div>
     <div>
       <label class="field-label">Faculty</label>
       <input name="faculty" placeholder="Faculty / Department">
@@ -66,17 +74,23 @@
       <input name="guardian_phone" placeholder="Guardian phone">
     </div>
     <div>
-      <label class="field-label">Room</label>
+      <label class="field-label">Room <span style="font-weight: normal; font-size: 11px; color: var(--muted);">(Assign or book a bed)</span></label>
       <select name="room_id">
         <option value="">No room</option>
         {% for room in rooms %}
           {% if (room.available_beds or 0) <= 0 %}
-            <option value="{{ room.id }}" style="color: #94a3b8;">{{ room.room_number }} (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }})</option>
+            <option value="{{ room.id }}" style="color: #94a3b8;">{{ room.room_number }} (Full &mdash; {{ room.capacity or 1 }}/{{ room.capacity or 1 }}: {{ room.active_count or 0 }} active{% if room.booked_count %}, {{ room.booked_count }} booked{% endif %})</option>
           {% else %}
-            <option value="{{ room.id }}" style="font-weight: 600; color: #15803d;">{{ room.room_number }} ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.occupied or 0 }}/{{ room.capacity or 1 }})</option>
+            <option value="{{ room.id }}" style="font-weight: 600; color: #15803d;">
+              {{ room.room_number }} ({{ room.available_beds or 0 }} bed{{ 's' if (room.available_beds or 0) > 1 else '' }} available &mdash; {{ room.capacity or 1 }} total{% if room.booked_count %}, {{ room.booked_count }} booked{% endif %})
+            </option>
           {% endif %}
         {% endfor %}
       </select>
+    </div>
+    <div>
+      <label class="field-label">Admission Fee (Rs.) <span style="font-weight: normal; font-size: 11px; color: var(--muted);">(One-time fee)</span></label>
+      <input name="admission_fee" type="number" step="0.01" placeholder="e.g. 5000" value="0">
     </div>
     <div>
       <label class="field-label">Monthly Fee (Rs.)</label>
@@ -84,8 +98,9 @@
     </div>
     <div>
       <label class="field-label">Status</label>
-      <select name="status">
+      <select name="status" id="addResidentStatus" onchange="handleAddStatusChange()">
         <option value="Active">Active</option>
+        <option value="Soon to Arrive">Soon to Arrive (Book Room)</option>
         <option value="Left">Left Boarding</option>
         <option value="Inactive">Inactive</option>
       </select>
@@ -100,12 +115,14 @@
     <span style="font-size: 13px; color: var(--muted);">
       {% if status_filter == 'Active' %}
         Showing <strong>Active Members</strong> ({{ counts.active_count }})
+      {% elif status_filter == 'Soon to Arrive' %}
+        Showing <strong>Soon to Arrive Members / Bookings</strong> ({{ counts.soon_count or 0 }})
       {% elif status_filter == 'Left' %}
         Showing <strong>Left Boarding / Previous Members</strong> ({{ counts.left_count }})
       {% elif status_filter == 'Inactive' %}
         Showing <strong>Inactive Residents</strong> ({{ counts.inactive_count }})
       {% else %}
-        Showing <strong>All Members</strong> ({{ counts.active_count }} active, {{ counts.left_count }} left)
+        Showing <strong>All Members</strong> ({{ counts.active_count }} active, {{ counts.soon_count or 0 }} soon to arrive, {{ counts.left_count }} left)
       {% endif %}
     </span>
   </div>
@@ -120,6 +137,9 @@
   </a>
   <a href="{{ url_for('residents', status='Active') }}" class="tab-btn {{ 'active' if status_filter == 'Active' else '' }}">
     Active Members ({{ counts.active_count }})
+  </a>
+  <a href="{{ url_for('residents', status='Soon to Arrive') }}" class="tab-btn {{ 'active' if status_filter == 'Soon to Arrive' else '' }}">
+    Soon to Arrive ({{ counts.soon_count or 0 }})
   </a>
   <a href="{{ url_for('residents', status='Left') }}" class="tab-btn {{ 'active' if status_filter == 'Left' else '' }}">
     Left Members ({{ counts.left_count }})
@@ -183,6 +203,92 @@
       </tr>
       {% else %}
       <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No active residents found.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+{% if status_filter in ['all', 'Soon to Arrive'] and (soon_residents or status_filter == 'Soon to Arrive') %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; flex-wrap: wrap; gap: 8px;">
+  <div>
+    <h4 style="margin: 0; display: flex; align-items: center; gap: 8px; font-size: 16px; color: #0284c7;">
+      Soon to Arrive Members / Bookings
+      <span class="badge badge-booking" style="font-size: 11px;">{{ counts.soon_count or 0 }} Booked</span>
+    </h4>
+    <p style="font-size: 12px; color: var(--muted); margin: 3px 0 0;">
+      Prospective residents with rooms booked prior to arrival. When they arrive, click <strong>Check In</strong> to activate them.
+    </p>
+  </div>
+</div>
+
+<div class="table-container" style="margin-bottom: 32px;">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>NIC</th>
+        <th>Booked Room</th>
+        <th>Expected Arrival</th>
+        <th>Phone</th>
+        <th>Admission Fee</th>
+        <th>Monthly Fee</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for resident in soon_residents %}
+      <tr class="resident-table-row">
+        <td><strong>{{ resident.full_name }}</strong></td>
+        <td>{{ resident.nic or "-" }}</td>
+        <td>
+          {% if resident.room_number %}
+            <span class="badge badge-booking">{{ resident.room_number }} (Booked)</span>
+          {% else %}
+            <span style="color: var(--muted); font-style: italic;">No room booked</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if resident.expected_arrival_date %}
+            <span style="font-weight: 600; color: #0284c7;">{{ resident.expected_arrival_date }}</span>
+          {% elif resident.joined_date %}
+            {{ resident.joined_date }}
+          {% else %}
+            <span style="color: var(--muted);">-</span>
+          {% endif %}
+        </td>
+        <td>{{ resident.phone or "-" }}</td>
+        <td>
+          {% if resident.admission_fee and resident.admission_fee > 0 %}
+            <strong>Rs. {{ money(resident.admission_fee) }}</strong>
+            {% if resident.admission_fee_status == 'Paid' or (resident.admission_fee_paid and resident.admission_fee_paid >= resident.admission_fee) %}
+              <span class="badge badge-paid" style="font-size: 10px; margin-left: 4px;">Paid</span>
+            {% elif resident.admission_fee_paid and resident.admission_fee_paid > 0 %}
+              <span class="badge badge-part-paid" style="font-size: 10px; margin-left: 4px;">Part Paid (Rs. {{ money(resident.admission_fee_paid) }})</span>
+              <a class="button-link button-sm button-outline" style="font-size: 10px; padding: 2px 7px; margin-left: 4px;" href="{{ url_for('payments', resident_id=resident.id, fee_type='admission') }}" title="Record remaining admission payment">Pay</a>
+            {% else %}
+              <span class="badge badge-unpaid" style="font-size: 10px; margin-left: 4px;">Unpaid</span>
+              <a class="button-link button-sm button-outline" style="font-size: 10px; padding: 2px 7px; margin-left: 4px;" href="{{ url_for('payments', resident_id=resident.id, fee_type='admission') }}" title="Record admission payment">Pay</a>
+            {% endif %}
+          {% else %}
+            <span style="color: var(--muted);">-</span>
+          {% endif %}
+        </td>
+        <td>Rs. {{ money(resident.monthly_fee) }}</td>
+        <td><span class="badge badge-booking">Soon to Arrive</span></td>
+        <td class="actions-cell">
+          <form method="post" action="{{ url_for('check_in_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Check in {{ resident.full_name }} as an Active resident? Their booked room will become their active room.');">
+            <button type="submit" class="button-success button-sm" title="Mark as arrived and activate">Check In</button>
+          </form>
+          <a class="button-link button-sm" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_resident', resident_id=resident.id) }}" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ resident.full_name }}?');">
+            <button type="submit" class="button-danger button-sm" title="Delete resident">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="9" style="color: var(--muted); text-align: center; padding: 24px;">No soon-to-arrive residents currently registered.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -312,6 +418,14 @@
 {% endif %}
 
 <script>
+function handleAddStatusChange() {
+  const status = document.getElementById('addResidentStatus').value;
+  const arrivalField = document.getElementById('addExpectedArrivalField');
+  if (arrivalField) {
+    arrivalField.style.display = (status === 'Soon to Arrive') ? 'block' : 'none';
+  }
+}
+
 function filterResidentsTable() {
   const q = document.getElementById('residentSearch').value.toLowerCase();
   const rows = document.querySelectorAll('.resident-table-row');

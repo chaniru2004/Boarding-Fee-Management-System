@@ -51,12 +51,14 @@
         <td>{{ room.floor or "-" }}</td>
         <td>{{ room.capacity }} bed{% if room.capacity > 1 %}s{% endif %}</td>
         <td>
-          <span class="badge {{ 'badge-overdue' if room.occupied >= room.capacity else 'badge-active' }}">
+          <span class="badge {% if room.occupied >= room.capacity %}badge-overdue{% elif room.booked_count %}badge-booking{% else %}badge-active{% endif %}">
             {{ room.occupied }} / {{ room.capacity }}
             {% if room.occupied >= room.capacity %}
-              (Full)
+              (Full{% if room.booked_count %}: {{ room.active_count or 0 }} active, {{ room.booked_count }} booked{% endif %})
+            {% elif room.booked_count %}
+              ({{ room.active_count or 0 }} active, {{ room.booked_count }} booked &mdash; {{ room.available_beds }} free)
             {% else %}
-              ({{ room.capacity - room.occupied }} free)
+              ({{ room.available_beds }} free)
             {% endif %}
           </span>
         </td>

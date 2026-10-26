@@ -24,20 +24,39 @@
   <div class="form-grid">
     <div>
       <label class="field-label">Resident</label>
-      <select name="resident_id" required>
-        <option value="" disabled {% if not residents %}selected{% endif %}>Select Resident</option>
+      <select name="resident_id" id="paymentResidentSelect" required onchange="handlePaymentResidentChange()">
+        <option value="" disabled {% if not selected_resident_id %}selected{% endif %}>Select Resident</option>
         {% for res in residents %}
-        <option value="{{ res.id }}">{{ res.full_name }}{% if res.room_number %} (Room: {{ res.room_number }}){% endif %}</option>
+        <option value="{{ res.id }}"
+          data-status="{{ res.status }}"
+          data-admission-fee="{{ res.admission_fee or 0 }}"
+          data-admission-paid="{{ res.admission_fee_paid or 0 }}"
+          data-monthly-fee="{{ res.monthly_fee or 0 }}"
+          {% if selected_resident_id and selected_resident_id == res.id %}selected{% endif %}>
+          {{ res.full_name }}
+          {% if res.status == 'Soon to Arrive' %}
+            (Soon to Arrive{% if res.room_number %} &mdash; Booked: {{ res.room_number }}{% endif %})
+          {% elif res.room_number %}
+            (Room: {{ res.room_number }})
+          {% endif %}
+        </option>
         {% endfor %}
       </select>
     </div>
     <div>
+      <label class="field-label">Payment For / Fee Type</label>
+      <select name="fee_type" id="feeTypeSelect" onchange="handleFeeTypeChange()">
+        <option value="monthly" {% if selected_fee_type != 'admission' %}selected{% endif %}>Monthly Boarding Fee</option>
+        <option value="admission" {% if selected_fee_type == 'admission' %}selected{% endif %}>Admission Fee / Deposit</option>
+      </select>
+    </div>
+    <div id="paymentMonthField" style="{{ 'display: none;' if selected_fee_type == 'admission' else 'display: block;' }}">
       <label class="field-label">Payment Month</label>
-      <input name="payment_month" type="month" value="{{ month if month != 'all' else current_month }}" required>
+      <input name="payment_month" id="paymentMonthInput" type="month" value="{{ month if month != 'all' else current_month }}">
     </div>
     <div>
       <label class="field-label">Amount (Rs.)</label>
-      <input name="amount" type="number" step="0.01" placeholder="Amount" required>
+      <input name="amount" id="paymentAmountInput" type="number" step="0.01" placeholder="Amount" required value="{{ prefill_amount or '' }}">
     </div>
     <div>
       <label class="field-label">Payment Method</label>
@@ -61,7 +80,7 @@
     </div>
     <div style="grid-column: 1 / -1;">
       <label class="field-label">Additional Notes</label>
-      <input name="notes" placeholder="Optional notes / remarks (e.g. advance, partial payment, etc.)">
+      <input name="notes" placeholder="Optional notes / remarks (e.g. advance, admission fee, partial payment, etc.)">
     </div>
   </div>
   <button type="submit">Record Payment</button>
@@ -93,7 +112,13 @@
       <tr>
         <td><a href="{{ url_for('receipt', receipt_number=payment.receipt_number) }}"><strong>{{ payment.receipt_number }}</strong></a></td>
         <td>{{ payment.full_name }}</td>
-        <td><span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ payment.payment_month or '-' }}</span></td>
+        <td>
+          {% if payment.payment_month == 'Admission Fee' or payment.fee_month == 'Admission' %}
+            <span class="badge badge-booking" style="font-weight: 600;">Admission Fee</span>
+          {% else %}
+            <span class="badge" style="background: rgba(14, 165, 233, 0.12); color: #0284c7; font-weight: 600;">{{ payment.payment_month or '-' }}</span>
+          {% endif %}
+        </td>
         <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
         <td><span class="badge">{{ payment.payment_method }}</span></td>
         <td>{{ payment.payment_date }}</td>
@@ -108,5 +133,65 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<script>
+function handlePaymentResidentChange() {
+  const select = document.getElementById('paymentResidentSelect');
+  if (!select) return;
+  const opt = select.options[select.selectedIndex];
+  if (!opt) return;
+  const status = opt.getAttribute('data-status');
+  const feeTypeSelect = document.getElementById('feeTypeSelect');
+  const admFee = parseFloat(opt.getAttribute('data-admission-fee') || '0');
+  const admPaid = parseFloat(opt.getAttribute('data-admission-paid') || '0');
+  const monthlyFee = parseFloat(opt.getAttribute('data-monthly-fee') || '0');
+  const amtInput = document.getElementById('paymentAmountInput');
+
+  if (status === 'Soon to Arrive' && admFee > admPaid) {
+    if (feeTypeSelect) feeTypeSelect.value = 'admission';
+    handleFeeTypeChange();
+  } else if (feeTypeSelect && feeTypeSelect.value === 'monthly' && monthlyFee > 0 && !amtInput.value) {
+    amtInput.value = monthlyFee.toFixed(2);
+  }
+}
+
+function handleFeeTypeChange() {
+  const feeTypeSelect = document.getElementById('feeTypeSelect');
+  if (!feeTypeSelect) return;
+  const feeType = feeTypeSelect.value;
+  const monthField = document.getElementById('paymentMonthField');
+  const monthInput = document.getElementById('paymentMonthInput');
+  const amtInput = document.getElementById('paymentAmountInput');
+  const resSelect = document.getElementById('paymentResidentSelect');
+
+  if (feeType === 'admission') {
+    if (monthField) monthField.style.display = 'none';
+    if (monthInput) monthInput.required = false;
+    if (resSelect && resSelect.selectedIndex >= 0) {
+      const opt = resSelect.options[resSelect.selectedIndex];
+      if (opt) {
+        const admFee = parseFloat(opt.getAttribute('data-admission-fee') || '0');
+        const admPaid = parseFloat(opt.getAttribute('data-admission-paid') || '0');
+        const rem = Math.max(0, admFee - admPaid);
+        if (rem > 0) amtInput.value = rem.toFixed(2);
+        else if (admFee > 0) amtInput.value = admFee.toFixed(2);
+      }
+    }
+  } else {
+    if (monthField) monthField.style.display = 'block';
+    if (monthInput) monthInput.required = true;
+    if (resSelect && resSelect.selectedIndex >= 0) {
+      const opt = resSelect.options[resSelect.selectedIndex];
+      if (opt) {
+        const mFee = parseFloat(opt.getAttribute('data-monthly-fee') || '0');
+        if (mFee > 0 && (!amtInput.value || amtInput.value === '0.00')) {
+          amtInput.value = mFee.toFixed(2);
+        }
+      }
+    }
+  }
+}
+</script>
 </div>
 {% endblock %}

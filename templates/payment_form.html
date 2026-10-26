@@ -16,8 +16,13 @@
       <input type="text" value="{{ payment.full_name }}" disabled style="background: var(--surface); color: var(--muted);">
     </div>
     <div>
-      <label class="field-label">Payment Month</label>
+      <label class="field-label">Payment Month / For</label>
+      {% if payment.payment_month == 'Admission Fee' or payment.month == 'Admission' %}
+      <input type="text" value="Admission Fee" disabled style="background: var(--surface); color: var(--muted);">
+      <input type="hidden" name="payment_month" value="Admission Fee">
+      {% else %}
       <input name="payment_month" type="month" value="{{ payment.payment_month or payment.month }}" required>
+      {% endif %}
     </div>
     <div>
       <label class="field-label">Amount (Rs.)</label>

@@ -184,18 +184,34 @@ def create_app(test_config: dict | None = None) -> Flask:
             if status == "Left":
                 previous_room_id = room_id
                 room_id = None
-                left_date = date.today().isoformat()
+                left_date = request.form.get("left_date") or date.today().isoformat()
 
-            joined_date = request.form.get("joined_date") or date.today().isoformat()
+            joined_date = request.form.get("joined_date") or None
+            expected_arrival_date = request.form.get("expected_arrival_date") or None
+            if status == "Active" and not joined_date:
+                joined_date = date.today().isoformat()
+            elif status == "Soon to Arrive" and not expected_arrival_date and joined_date:
+                expected_arrival_date = joined_date
 
-            g.db.execute(
+            admission_fee = decimal_string(request.form.get("admission_fee", "0"))
+            admission_fee_paid = decimal_string(request.form.get("admission_fee_paid", "0"))
+            admission_fee_status = "Unpaid"
+            if Decimal(admission_fee) > Decimal("0"):
+                if Decimal(admission_fee_paid) >= Decimal(admission_fee):
+                    admission_fee_status = "Paid"
+                elif Decimal(admission_fee_paid) > Decimal("0"):
+                    admission_fee_status = "Part Paid"
+
+            cur = g.db.execute(
                 """
                 INSERT INTO residents (
                     full_name, phone, nic, date_of_birth, address, faculty,
                     guardian_name, guardian_phone, room_id, monthly_fee, status,
-                    left_date, previous_room_id, joined_date
+                    left_date, previous_room_id, joined_date,
+                    expected_arrival_date, admission_fee, admission_fee_paid, admission_fee_status
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
                 """,
                 (
                     request.form["full_name"].strip(),
@@ -212,14 +228,36 @@ def create_app(test_config: dict | None = None) -> Flask:
                     left_date,
                     previous_room_id,
                     joined_date,
+                    expected_arrival_date,
+                    admission_fee,
+                    admission_fee_paid,
+                    admission_fee_status,
                 ),
             )
+            new_res_id = cur.fetchone()["id"]
+
+            if Decimal(admission_fee) > Decimal("0"):
+                due_d = expected_arrival_date or joined_date or date.today().isoformat()
+                bal = max(Decimal("0"), Decimal(admission_fee) - Decimal(admission_fee_paid))
+                g.db.execute(
+                    """
+                    INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, amount_paid, balance, status)
+                    VALUES (%s, 'Admission', %s, %s, %s, %s, %s)
+                    ON CONFLICT (resident_id, month) DO UPDATE
+                    SET amount_due = EXCLUDED.amount_due,
+                        due_date = EXCLUDED.due_date
+                    """,
+                    (new_res_id, due_d, admission_fee, admission_fee_paid, str(bal), admission_fee_status),
+                )
 
             g.db.commit()
 
-            flash("Resident saved successfully.", "success")
+            if status == "Soon to Arrive":
+                flash("Soon-to-arrive resident saved and room booked successfully.", "success")
+            else:
+                flash("Resident saved successfully.", "success")
 
-            return redirect(url_for("residents"))
+            return redirect(url_for("residents", status=status if status in ("Active", "Soon to Arrive", "Left") else "all"))
 
         status_filter = request.args.get("status", "all")
         where_clause = ""
@@ -240,9 +278,10 @@ def create_app(test_config: dict | None = None) -> Flask:
             ORDER BY
                 CASE
                     WHEN r.status = 'Active' THEN 1
-                    WHEN r.status = 'Left' THEN 2
-                    WHEN r.status = 'Inactive' THEN 3
-                    ELSE 4
+                    WHEN r.status = 'Soon to Arrive' THEN 2
+                    WHEN r.status = 'Left' THEN 3
+                    WHEN r.status = 'Inactive' THEN 4
+                    ELSE 5
                 END,
                 r.full_name
             """,
@@ -254,6 +293,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             SELECT
                 COUNT(*) AS total,
                 COUNT(*) FILTER (WHERE status = 'Active') AS active_count,
+                COUNT(*) FILTER (WHERE status = 'Soon to Arrive') AS soon_count,
                 COUNT(*) FILTER (WHERE status = 'Left') AS left_count,
                 COUNT(*) FILTER (WHERE status = 'Inactive') AS inactive_count
             FROM residents
@@ -263,10 +303,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         rooms = g.db.execute(
             """
             SELECT rooms.*,
-                   COUNT(r.id) AS occupied,
-                   (COALESCE(rooms.capacity, 1) - COUNT(r.id)) AS available_beds
+                   COUNT(r.id) FILTER (WHERE r.status = 'Active') AS active_count,
+                   COUNT(r.id) FILTER (WHERE r.status = 'Soon to Arrive') AS booked_count,
+                   COUNT(r.id) FILTER (WHERE r.status IN ('Active', 'Soon to Arrive')) AS occupied,
+                   (COALESCE(rooms.capacity, 1) - COUNT(r.id) FILTER (WHERE r.status IN ('Active', 'Soon to Arrive'))) AS available_beds
             FROM rooms
-            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
+            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status IN ('Active', 'Soon to Arrive')
             GROUP BY rooms.id
             ORDER BY rooms.room_number
             """
@@ -275,6 +317,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         total_available_beds = sum(max(0, int(r.get("available_beds") or 0)) for r in rooms)
 
         active_residents = [r for r in rows if r["status"] == "Active"]
+        soon_residents = [r for r in rows if r["status"] == "Soon to Arrive"]
         left_residents = [r for r in rows if r["status"] == "Left"]
         inactive_residents = [r for r in rows if r["status"] == "Inactive"]
 
@@ -283,6 +326,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             active="residents",
             residents=rows,
             active_residents=active_residents,
+            soon_residents=soon_residents,
             left_residents=left_residents,
             inactive_residents=inactive_residents,
             rooms=rooms,
@@ -290,6 +334,52 @@ def create_app(test_config: dict | None = None) -> Flask:
             counts=counts,
             total_available_beds=total_available_beds,
         )
+
+    @app.route("/residents/<int:resident_id>/check-in", methods=["POST"])
+    def check_in_resident(resident_id: int):
+        resident = get_one(
+            """
+            SELECT r.*, rooms.room_number
+            FROM residents r
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            WHERE r.id = %s
+            """,
+            (resident_id,),
+        )
+        if not resident:
+            flash("Resident not found.", "warning")
+            return redirect(url_for("residents"))
+
+        today_str = date.today().isoformat()
+        joined_date = request.form.get("joined_date") or resident.get("expected_arrival_date") or today_str
+
+        g.db.execute(
+            """
+            UPDATE residents
+            SET status = 'Active',
+                joined_date = %s
+            WHERE id = %s
+            """,
+            (joined_date, resident_id),
+        )
+        room_info = f"in Room '{resident['room_number']}'" if resident.get("room_number") else "with no room assigned"
+        log_audit(
+            "CHECK_IN",
+            "residents",
+            str(resident_id),
+            resident.get("status") or "Soon to Arrive",
+            f"Checked in {resident['full_name']} as Active resident {room_info} on {joined_date}",
+        )
+        g.db.commit()
+
+        # Ensure current month fee is generated for this new active resident
+        ensure_monthly_fees(current_month())
+
+        flash(
+            f"Resident '{resident['full_name']}' has been checked in as an Active resident {room_info}.",
+            "success",
+        )
+        return redirect(url_for("residents"))
 
     @app.route("/residents/<int:resident_id>/leave", methods=["POST"])
     def mark_resident_left(resident_id: int):
@@ -394,17 +484,34 @@ def create_app(test_config: dict | None = None) -> Flask:
                 room_id = None
                 if not left_date:
                     left_date = resident.get("left_date") or date.today().isoformat()
-            elif new_status == "Active":
+            elif new_status in ("Active", "Soon to Arrive"):
                 left_date = None
 
             joined_date = request.form.get("joined_date") or resident.get("joined_date") or None
+            expected_arrival_date = request.form.get("expected_arrival_date") or resident.get("expected_arrival_date") or None
+            admission_fee = decimal_string(request.form.get("admission_fee", "0"))
+            admission_fee_paid = decimal_string(request.form.get("admission_fee_paid", "0"))
+            admission_fee_status = request.form.get("admission_fee_status", "Unpaid")
+
+            adm_fee_dec = Decimal(admission_fee)
+            adm_paid_dec = Decimal(admission_fee_paid)
+            if adm_fee_dec > Decimal("0"):
+                if adm_paid_dec >= adm_fee_dec:
+                    admission_fee_status = "Paid"
+                elif adm_paid_dec > Decimal("0"):
+                    admission_fee_status = "Part Paid"
+                elif admission_fee_status not in ("Paid", "Part Paid"):
+                    admission_fee_status = "Unpaid"
+            else:
+                admission_fee_status = "Unpaid"
 
             g.db.execute(
                 """
                 UPDATE residents
                 SET full_name = %s, phone = %s, nic = %s, date_of_birth = %s, address = %s, faculty = %s,
                     guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s,
-                    left_date = %s, previous_room_id = %s, joined_date = %s
+                    left_date = %s, previous_room_id = %s, joined_date = %s,
+                    expected_arrival_date = %s, admission_fee = %s, admission_fee_paid = %s, admission_fee_status = %s
                 WHERE id = %s
                 """,
                 (
@@ -422,9 +529,30 @@ def create_app(test_config: dict | None = None) -> Flask:
                     left_date,
                     previous_room_id,
                     joined_date,
+                    expected_arrival_date,
+                    admission_fee,
+                    admission_fee_paid,
+                    admission_fee_status,
                     resident_id,
                 ),
             )
+
+            if adm_fee_dec > Decimal("0"):
+                due_d = expected_arrival_date or joined_date or date.today().isoformat()
+                bal = max(Decimal("0"), adm_fee_dec - adm_paid_dec)
+                g.db.execute(
+                    """
+                    INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, amount_paid, balance, status)
+                    VALUES (%s, 'Admission', %s, %s, %s, %s, %s)
+                    ON CONFLICT (resident_id, month) DO UPDATE
+                    SET amount_due = EXCLUDED.amount_due,
+                        due_date = EXCLUDED.due_date,
+                        amount_paid = EXCLUDED.amount_paid,
+                        balance = EXCLUDED.balance,
+                        status = EXCLUDED.status
+                    """,
+                    (resident_id, due_d, admission_fee, admission_fee_paid, str(bal), admission_fee_status),
+                )
 
             g.db.commit()
 
@@ -435,10 +563,12 @@ def create_app(test_config: dict | None = None) -> Flask:
         rooms = g.db.execute(
             """
             SELECT rooms.*,
-                   COUNT(r.id) AS occupied,
-                   (COALESCE(rooms.capacity, 1) - COUNT(r.id)) AS available_beds
+                   COUNT(r.id) FILTER (WHERE r.status = 'Active') AS active_count,
+                   COUNT(r.id) FILTER (WHERE r.status = 'Soon to Arrive') AS booked_count,
+                   COUNT(r.id) FILTER (WHERE r.status IN ('Active', 'Soon to Arrive')) AS occupied,
+                   (COALESCE(rooms.capacity, 1) - COUNT(r.id) FILTER (WHERE r.status IN ('Active', 'Soon to Arrive'))) AS available_beds
             FROM rooms
-            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status = 'Active'
+            LEFT JOIN residents r ON r.room_id = rooms.id AND r.status IN ('Active', 'Soon to Arrive')
             GROUP BY rooms.id
             ORDER BY rooms.room_number
             """
@@ -514,10 +644,20 @@ def create_app(test_config: dict | None = None) -> Flask:
         rows = g.db.execute(
             """
             SELECT rooms.*,
-                   COUNT(residents.id) AS occupied,
-                   STRING_AGG(CASE WHEN residents.status = 'Active' THEN residents.full_name ELSE NULL END, ', ' ORDER BY residents.full_name) AS occupants
+                   COUNT(residents.id) FILTER (WHERE residents.status = 'Active') AS active_count,
+                   COUNT(residents.id) FILTER (WHERE residents.status = 'Soon to Arrive') AS booked_count,
+                   COUNT(residents.id) FILTER (WHERE residents.status IN ('Active', 'Soon to Arrive')) AS occupied,
+                   (COALESCE(rooms.capacity, 1) - COUNT(residents.id) FILTER (WHERE residents.status IN ('Active', 'Soon to Arrive'))) AS available_beds,
+                   STRING_AGG(
+                       CASE
+                           WHEN residents.status = 'Active' THEN residents.full_name
+                           WHEN residents.status = 'Soon to Arrive' THEN residents.full_name || ' (Booked)'
+                           ELSE NULL
+                       END,
+                       ', ' ORDER BY residents.full_name
+                   ) AS occupants
             FROM rooms
-            LEFT JOIN residents ON residents.room_id = rooms.id AND residents.status = 'Active'
+            LEFT JOIN residents ON residents.room_id = rooms.id AND residents.status IN ('Active', 'Soon to Arrive')
             GROUP BY rooms.id
             ORDER BY rooms.room_number
             """
@@ -547,7 +687,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             return redirect(url_for("rooms"))
 
         occupied_count = g.db.execute(
-            "SELECT COUNT(*) AS count FROM residents WHERE room_id = %s AND status = 'Active'",
+            "SELECT COUNT(*) AS count FROM residents WHERE room_id = %s AND status IN ('Active', 'Soon to Arrive')",
             (room_id,),
         ).fetchone()["count"]
         return render_template("room_form.html", active="rooms", room=room, occupied=occupied_count)
@@ -649,7 +789,7 @@ def create_app(test_config: dict | None = None) -> Flask:
         if not month:
             month = current_month()
 
-        if month != "all":
+        if month != "all" and month != "Admission":
             ensure_monthly_fees(month)
             refresh_all_statuses(month)
 
@@ -669,31 +809,57 @@ def create_app(test_config: dict | None = None) -> Flask:
 
                 return redirect(url_for("payments", month=month))
 
+            fee_type = request.form.get("fee_type", "monthly")
+            is_admission = (fee_type == "admission") or (request.form.get("payment_month", "").strip() in ("Admission", "Admission Fee"))
+
             if "resident_id" in request.form and request.form["resident_id"]:
                 resident_id = int(request.form["resident_id"])
-                payment_month = request.form.get("payment_month", "").strip() or (month if month != "all" else current_month())
-                ensure_monthly_fees(payment_month)
-                fee = g.db.execute(
-                    "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = %s",
-                    (resident_id, payment_month),
-                ).fetchone()
-                if not fee:
-                    due_date = f"{payment_month}-10"
-                    res_info = g.db.execute("SELECT monthly_fee FROM residents WHERE id = %s", (resident_id,)).fetchone()
-                    fee_due = res_info["monthly_fee"] if res_info else "0"
+                res_info = g.db.execute("SELECT * FROM residents WHERE id = %s", (resident_id,)).fetchone()
+
+                if is_admission:
+                    payment_month = "Admission Fee"
                     fee = g.db.execute(
-                        """
-                        INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
-                        VALUES (%s, %s, %s, %s, %s, 'Unpaid')
-                        RETURNING id
-                        """,
-                        (resident_id, payment_month, due_date, fee_due, fee_due),
+                        "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = 'Admission'",
+                        (resident_id,),
                     ).fetchone()
-                monthly_fee_id = fee["id"]
+                    if not fee:
+                        adm_fee = res_info["admission_fee"] if (res_info and res_info.get("admission_fee")) else request.form["amount"]
+                        due_date = res_info.get("expected_arrival_date") or res_info.get("joined_date") or date.today().isoformat()
+                        fee = g.db.execute(
+                            """
+                            INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                            VALUES (%s, 'Admission', %s, %s, %s, 'Unpaid')
+                            RETURNING id
+                            """,
+                            (resident_id, due_date, adm_fee, adm_fee),
+                        ).fetchone()
+                    monthly_fee_id = fee["id"]
+                else:
+                    payment_month = request.form.get("payment_month", "").strip() or (month if month != "all" else current_month())
+                    ensure_monthly_fees(payment_month)
+                    fee = g.db.execute(
+                        "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = %s",
+                        (resident_id, payment_month),
+                    ).fetchone()
+                    if not fee:
+                        due_date = f"{payment_month}-10"
+                        fee_due = res_info["monthly_fee"] if res_info else "0"
+                        fee = g.db.execute(
+                            """
+                            INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                            VALUES (%s, %s, %s, %s, %s, 'Unpaid')
+                            RETURNING id
+                            """,
+                            (resident_id, payment_month, due_date, fee_due, fee_due),
+                        ).fetchone()
+                    monthly_fee_id = fee["id"]
             elif "monthly_fee_id" in request.form and request.form["monthly_fee_id"]:
                 monthly_fee_id = int(request.form["monthly_fee_id"])
                 fee = g.db.execute("SELECT resident_id, month FROM monthly_fees WHERE id = %s", (monthly_fee_id,)).fetchone()
-                payment_month = request.form.get("payment_month", "").strip() or (fee["month"] if fee else current_month())
+                if fee and fee["month"] == "Admission":
+                    payment_month = "Admission Fee"
+                else:
+                    payment_month = request.form.get("payment_month", "").strip() or (fee["month"] if fee else current_month())
             else:
                 flash("Please select a resident.", "error")
                 return redirect(url_for("payments", month=month))
@@ -753,18 +919,37 @@ def create_app(test_config: dict | None = None) -> Flask:
         history = payment_history(month)
         active_residents = g.db.execute(
             """
-            SELECT r.id, r.full_name, r.monthly_fee, rooms.room_number, r.status
+            SELECT r.id, r.full_name, r.monthly_fee, r.admission_fee, r.admission_fee_paid,
+                   r.admission_fee_status, rooms.room_number, r.status
             FROM residents r
             LEFT JOIN rooms ON rooms.id = r.room_id
-            WHERE r.status = 'Active' OR EXISTS (
+            WHERE r.status IN ('Active', 'Soon to Arrive') OR EXISTS (
                 SELECT 1 FROM monthly_fees mf WHERE mf.resident_id = r.id AND mf.balance > 0
             )
             ORDER BY
-                CASE WHEN r.status = 'Active' THEN 1 ELSE 2 END,
+                CASE
+                    WHEN r.status = 'Active' THEN 1
+                    WHEN r.status = 'Soon to Arrive' THEN 2
+                    ELSE 3
+                END,
                 r.full_name
             """
         ).fetchall()
         fees_data = fee_rows(month if month != "all" else current_month())
+
+        selected_resident_id = request.args.get("resident_id", type=int)
+        selected_fee_type = request.args.get("fee_type", "monthly")
+        prefill_amount = ""
+        if selected_resident_id and selected_fee_type == "admission":
+            res_target = next((r for r in active_residents if r["id"] == selected_resident_id), None)
+            if res_target:
+                adm_due = Decimal(str(res_target.get("admission_fee") or 0))
+                adm_paid = Decimal(str(res_target.get("admission_fee_paid") or 0))
+                rem = max(Decimal("0"), adm_due - adm_paid)
+                if rem > Decimal("0"):
+                    prefill_amount = str(rem)
+                elif adm_due > Decimal("0"):
+                    prefill_amount = str(adm_due)
 
         return render_template(
             "payments.html",
@@ -774,6 +959,9 @@ def create_app(test_config: dict | None = None) -> Flask:
             residents=active_residents,
             fees=fees_data,
             payments=history,
+            selected_resident_id=selected_resident_id,
+            selected_fee_type=selected_fee_type,
+            prefill_amount=prefill_amount,
         )
 
     @app.route("/payments/<int:payment_id>/edit", methods=["GET", "POST"])
@@ -806,7 +994,26 @@ def create_app(test_config: dict | None = None) -> Flask:
             target_fee_id = payment["monthly_fee_id"]
             old_fee_id = payment["monthly_fee_id"]
 
-            if new_month != (payment.get("payment_month") or payment["month"]):
+            if new_month in ("Admission", "Admission Fee"):
+                new_month = "Admission Fee"
+                target_fee = g.db.execute(
+                    "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = 'Admission'",
+                    (payment["resident_id"],),
+                ).fetchone()
+                if not target_fee:
+                    fee_res = g.db.execute("SELECT admission_fee, expected_arrival_date, joined_date FROM residents WHERE id = %s", (payment["resident_id"],)).fetchone()
+                    due_amt = fee_res["admission_fee"] if fee_res else "0"
+                    due_date = fee_res.get("expected_arrival_date") or fee_res.get("joined_date") or date.today().isoformat()
+                    target_fee = g.db.execute(
+                        """
+                        INSERT INTO monthly_fees (resident_id, month, due_date, amount_due, balance, status)
+                        VALUES (%s, 'Admission', %s, %s, %s, 'Unpaid')
+                        RETURNING id
+                        """,
+                        (payment["resident_id"], due_date, due_amt, due_amt),
+                    ).fetchone()
+                target_fee_id = target_fee["id"]
+            elif new_month != (payment.get("payment_month") or payment["month"]):
                 ensure_monthly_fees(new_month)
                 target_fee = g.db.execute(
                     "SELECT id FROM monthly_fees WHERE resident_id = %s AND month = %s",
@@ -1122,7 +1329,19 @@ def init_db() -> None:
 
                 status TEXT NOT NULL DEFAULT 'Active',
 
-                joined_date DATE
+                joined_date DATE,
+
+                left_date DATE,
+
+                previous_room_id INTEGER,
+
+                expected_arrival_date DATE,
+
+                admission_fee NUMERIC(12, 2) NOT NULL DEFAULT 0,
+
+                admission_fee_paid NUMERIC(12, 2) NOT NULL DEFAULT 0,
+
+                admission_fee_status TEXT NOT NULL DEFAULT 'Unpaid'
 
             );
 
@@ -1205,6 +1424,10 @@ def init_db() -> None:
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS left_date DATE;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS previous_room_id INTEGER;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS joined_date DATE;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS expected_arrival_date DATE;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee NUMERIC(12, 2) NOT NULL DEFAULT 0;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee_paid NUMERIC(12, 2) NOT NULL DEFAULT 0;
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee_status TEXT NOT NULL DEFAULT 'Unpaid';
             ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_month TEXT;
             UPDATE payments p
             SET payment_month = mf.month
@@ -1873,7 +2096,7 @@ def update_fee_status_db(db, monthly_fee_id: int) -> None:
             status = "Paid"
         elif paid_decimal > 0:
             status = "Part Paid"
-        elif as_date(fee["due_date"]) < date.today():
+        elif fee.get("due_date") and fee.get("month") != "Admission" and as_date(fee["due_date"]) < date.today():
             status = "Overdue"
         else:
             status = "Unpaid"
@@ -1882,6 +2105,17 @@ def update_fee_status_db(db, monthly_fee_id: int) -> None:
             "UPDATE monthly_fees SET amount_paid = %s, balance = %s, status = %s WHERE id = %s",
             (str(paid_decimal), str(balance), status, monthly_fee_id),
         )
+
+        if fee.get("month") == "Admission":
+            cur.execute(
+                """
+                UPDATE residents
+                SET admission_fee_paid = %s,
+                    admission_fee_status = %s
+                WHERE id = %s
+                """,
+                (str(paid_decimal), status, fee["resident_id"]),
+            )
     db.commit()
 
 def refresh_all_statuses(month: str) -> None:

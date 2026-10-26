@@ -545,6 +545,12 @@ button:active, .button-link:active {
   border-color: #fde68a;
 }
 
+.badge-booking, .badge.booking, .badge-soon, .badge.soon, .badge-soon-to-arrive {
+  background: #e0f2fe;
+  color: #0369a1;
+  border-color: #bae6fd;
+}
+
 .tab-btn {
   display: inline-flex;
   align-items: center;
