@@ -32,7 +32,6 @@
           data-admission-fee="{{ res.admission_fee or 0 }}"
           data-admission-paid="{{ res.admission_fee_paid or 0 }}"
           data-monthly-fee="{{ res.monthly_fee or 0 }}"
-          data-monthly-balance="{{ monthly_balances.get(res.id, res.monthly_fee or 0) }}"
           {% if selected_resident_id and selected_resident_id == res.id %}selected{% endif %}>
           {{ res.full_name }}
           {% if res.status == 'Soon to Arrive' %}
@@ -147,14 +146,13 @@ function handlePaymentResidentChange() {
   const admFee = parseFloat(opt.getAttribute('data-admission-fee') || '0');
   const admPaid = parseFloat(opt.getAttribute('data-admission-paid') || '0');
   const monthlyFee = parseFloat(opt.getAttribute('data-monthly-fee') || '0');
-  const monthlyBalance = parseFloat(opt.getAttribute('data-monthly-balance') || monthlyFee);
   const amtInput = document.getElementById('paymentAmountInput');
 
   if (status === 'Soon to Arrive' && admFee > admPaid) {
     if (feeTypeSelect) feeTypeSelect.value = 'admission';
     handleFeeTypeChange();
-  } else if (feeTypeSelect && feeTypeSelect.value === 'monthly' && monthlyBalance > 0 && !amtInput.value) {
-    amtInput.value = monthlyBalance.toFixed(2);
+  } else if (feeTypeSelect && feeTypeSelect.value === 'monthly' && monthlyFee > 0 && !amtInput.value) {
+    amtInput.value = monthlyFee.toFixed(2);
   }
 }
 
@@ -187,9 +185,8 @@ function handleFeeTypeChange() {
       const opt = resSelect.options[resSelect.selectedIndex];
       if (opt) {
         const mFee = parseFloat(opt.getAttribute('data-monthly-fee') || '0');
-        const mBalance = parseFloat(opt.getAttribute('data-monthly-balance') || mFee);
-        if (mBalance > 0 && (!amtInput.value || amtInput.value === '0.00')) {
-          amtInput.value = mBalance.toFixed(2);
+        if (mFee > 0 && (!amtInput.value || amtInput.value === '0.00')) {
+          amtInput.value = mFee.toFixed(2);
         }
       }
     }
