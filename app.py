@@ -908,8 +908,8 @@ def create_app(test_config: dict | None = None) -> Flask:
 
             log_audit("CREATE_PAYMENT", "payments", receipt_number, "", f"Recorded {receipt_number} for {payment_month}")
 
-            g.db.commit()
-
+            # Recalculate from the payment ledger before committing so the
+            # paid total, remaining balance, and status update together.
             update_fee_status(monthly_fee_id)
 
             flash(f"Payment recorded for {payment_month}. Receipt {receipt_number} created.", "success")
@@ -936,6 +936,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             """
         ).fetchall()
         fees_data = fee_rows(month if month != "all" else current_month())
+        monthly_balances = {fee["resident_id"]: Decimal(str(fee["balance"] or 0)) for fee in fees_data}
 
         selected_resident_id = request.args.get("resident_id", type=int)
         selected_fee_type = request.args.get("fee_type", "monthly")
@@ -950,6 +951,14 @@ def create_app(test_config: dict | None = None) -> Flask:
                     prefill_amount = str(rem)
                 elif adm_due > Decimal("0"):
                     prefill_amount = str(adm_due)
+        elif selected_resident_id:
+            res_target = next((r for r in active_residents if r["id"] == selected_resident_id), None)
+            if res_target:
+                remaining = monthly_balances.get(selected_resident_id)
+                if remaining is not None and remaining > Decimal("0"):
+                    prefill_amount = str(remaining)
+                elif remaining is None and Decimal(str(res_target.get("monthly_fee") or 0)) > Decimal("0"):
+                    prefill_amount = str(res_target["monthly_fee"])
 
         return render_template(
             "payments.html",
@@ -962,6 +971,7 @@ def create_app(test_config: dict | None = None) -> Flask:
             selected_resident_id=selected_resident_id,
             selected_fee_type=selected_fee_type,
             prefill_amount=prefill_amount,
+            monthly_balances=monthly_balances,
         )
 
     @app.route("/payments/<int:payment_id>/edit", methods=["GET", "POST"])
@@ -1077,8 +1087,6 @@ def create_app(test_config: dict | None = None) -> Flask:
             after = dict(payment_detail(payment_id, fresh=False))
 
             log_audit("EDIT_PAYMENT", "payments", payment["receipt_number"], str(before), str(after))
-
-            g.db.commit()
 
             update_fee_status(old_fee_id)
             if target_fee_id != old_fee_id:
