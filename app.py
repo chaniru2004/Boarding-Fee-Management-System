@@ -15,6 +15,7 @@ from decimal import Decimal, ROUND_HALF_UP
 from pathlib import Path
 
 import psycopg
+from PIL import Image, UnidentifiedImageError
 
 from psycopg.rows import dict_row
 
@@ -35,21 +36,45 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 
 PAYMENT_METHODS = ("Cash", "Bank Transfer", "Online/Mobile Transfer", "Other")
 MAX_RESIDENT_PHOTO_BYTES = 2 * 1024 * 1024
+MAX_RESIDENT_UPLOAD_BYTES = 12 * 1024 * 1024
 ALLOWED_RESIDENT_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 
 
 def resident_photo_from_upload(file_storage):
-    """Return a data URL for an uploaded resident photo, or None."""
+    """Return a data URL, compressing oversized resident photos automatically."""
     if not file_storage or not file_storage.filename:
         return None
     content_type = (file_storage.mimetype or "").lower()
     if content_type not in ALLOWED_RESIDENT_PHOTO_TYPES:
         raise ValueError("Please upload a JPG, PNG, WEBP, or GIF image.")
-    photo_bytes = file_storage.read(MAX_RESIDENT_PHOTO_BYTES + 1)
-    if len(photo_bytes) > MAX_RESIDENT_PHOTO_BYTES:
-        raise ValueError("Resident photos must be 2 MB or smaller.")
+    photo_bytes = file_storage.read(MAX_RESIDENT_UPLOAD_BYTES + 1)
+    if len(photo_bytes) > MAX_RESIDENT_UPLOAD_BYTES:
+        raise ValueError("Resident photos must be 12 MB or smaller before compression.")
     if not photo_bytes:
         return None
+    if len(photo_bytes) > MAX_RESIDENT_PHOTO_BYTES:
+        try:
+            with Image.open(io.BytesIO(photo_bytes)) as image:
+                image = image.convert("RGB")
+                compressed = io.BytesIO()
+                compressed_photo = None
+                for max_dimension in (1600, 1280, 1024, 800):
+                    image.thumbnail((max_dimension, max_dimension), Image.Resampling.LANCZOS)
+                    for quality in range(85, 35, -5):
+                        compressed.seek(0)
+                        compressed.truncate(0)
+                        image.save(compressed, format="JPEG", quality=quality, optimize=True)
+                        if compressed.tell() <= MAX_RESIDENT_PHOTO_BYTES:
+                            compressed_photo = compressed.getvalue()
+                            break
+                    if compressed_photo is not None:
+                        break
+                if compressed_photo is None:
+                    raise ValueError("This image could not be compressed below 2 MB.")
+                photo_bytes = compressed_photo
+                content_type = "image/jpeg"
+        except (UnidentifiedImageError, OSError) as exc:
+            raise ValueError("The uploaded file is not a valid image.") from exc
     return f"data:{content_type};base64,{base64.b64encode(photo_bytes).decode('ascii')}"
 
 def create_app(test_config: dict | None = None) -> Flask:

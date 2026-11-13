@@ -18,7 +18,7 @@
       <img id="residentPhotoPreview" class="resident-photo-preview" alt="Selected resident picture preview" hidden>
       {% endif %}
       <input name="resident_photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewResidentPhoto(this)">
-      <small class="photo-help">JPG, PNG, WEBP, or GIF · max 2 MB</small>
+      <small class="photo-help">JPG, PNG, WEBP, or GIF · larger images are compressed automatically</small>
       {% if resident.photo_data %}
       <label class="photo-remove"><input type="checkbox" name="remove_photo" value="1"> Remove current picture</label>
       {% endif %}

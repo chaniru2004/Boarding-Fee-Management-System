@@ -389,6 +389,10 @@ input:focus, select:focus, textarea:focus {
   border-radius: 14px;
 }
 
+.resident-photo-preview[hidden] {
+  display: none;
+}
+
 .photo-help {
   display: block;
   margin-top: 5px;
