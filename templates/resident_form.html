@@ -8,8 +8,21 @@
   <a class="button-link" href="{{ url_for('residents') }}">Back to Residents</a>
 </section>
 
-<form class="panel" method="post">
+<form class="panel" method="post" enctype="multipart/form-data">
   <div class="form-grid">
+    <div class="resident-photo-field">
+      <label class="field-label">Resident Picture</label>
+      {% if resident.photo_data %}
+      <img id="residentPhotoPreview" class="resident-photo-preview" src="{{ resident.photo_data }}" alt="{{ resident.full_name }}">
+      {% else %}
+      <img id="residentPhotoPreview" class="resident-photo-preview" alt="Selected resident picture preview" hidden>
+      {% endif %}
+      <input name="resident_photo" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onchange="previewResidentPhoto(this)">
+      <small class="photo-help">JPG, PNG, WEBP, or GIF · max 2 MB</small>
+      {% if resident.photo_data %}
+      <label class="photo-remove"><input type="checkbox" name="remove_photo" value="1"> Remove current picture</label>
+      {% endif %}
+    </div>
     <div>
       <label class="field-label">Full Name</label>
       <input name="full_name" value="{{ resident.full_name }}" required>
@@ -187,6 +200,14 @@
 </section>
 
 <script>
+function previewResidentPhoto(input) {
+  const preview = document.getElementById('residentPhotoPreview');
+  const file = input.files && input.files[0];
+  if (!file) return;
+  preview.src = URL.createObjectURL(file);
+  preview.hidden = false;
+}
+
 function handleStatusChange() {
   const status = document.getElementById('residentStatus').value;
   const leftDateField = document.getElementById('leftDateField');

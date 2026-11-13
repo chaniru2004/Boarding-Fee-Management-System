@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import csv
 import io
 import os
@@ -33,6 +34,23 @@ if env_file.exists():
 DATABASE_URL = os.environ.get("DATABASE_URL")
 
 PAYMENT_METHODS = ("Cash", "Bank Transfer", "Online/Mobile Transfer", "Other")
+MAX_RESIDENT_PHOTO_BYTES = 2 * 1024 * 1024
+ALLOWED_RESIDENT_PHOTO_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+
+
+def resident_photo_from_upload(file_storage):
+    """Return a data URL for an uploaded resident photo, or None."""
+    if not file_storage or not file_storage.filename:
+        return None
+    content_type = (file_storage.mimetype or "").lower()
+    if content_type not in ALLOWED_RESIDENT_PHOTO_TYPES:
+        raise ValueError("Please upload a JPG, PNG, WEBP, or GIF image.")
+    photo_bytes = file_storage.read(MAX_RESIDENT_PHOTO_BYTES + 1)
+    if len(photo_bytes) > MAX_RESIDENT_PHOTO_BYTES:
+        raise ValueError("Resident photos must be 2 MB or smaller.")
+    if not photo_bytes:
+        return None
+    return f"data:{content_type};base64,{base64.b64encode(photo_bytes).decode('ascii')}"
 
 def create_app(test_config: dict | None = None) -> Flask:
 
@@ -177,6 +195,11 @@ def create_app(test_config: dict | None = None) -> Flask:
     def residents():
 
         if request.method == "POST":
+            try:
+                resident_photo = resident_photo_from_upload(request.files.get("resident_photo"))
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("residents"))
             status = request.form.get("status", "Active")
             room_id = value_or_none(request.form.get("room_id"))
             previous_room_id = None
@@ -208,9 +231,10 @@ def create_app(test_config: dict | None = None) -> Flask:
                     full_name, phone, nic, date_of_birth, address, faculty,
                     guardian_name, guardian_phone, room_id, monthly_fee, status,
                     left_date, previous_room_id, joined_date,
-                    expected_arrival_date, admission_fee, admission_fee_paid, admission_fee_status
+                    expected_arrival_date, admission_fee, admission_fee_paid, admission_fee_status,
+                    photo_data
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING id
                 """,
                 (
@@ -232,6 +256,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     admission_fee,
                     admission_fee_paid,
                     admission_fee_status,
+                    resident_photo,
                 ),
             )
             new_res_id = cur.fetchone()["id"]
@@ -471,6 +496,13 @@ def create_app(test_config: dict | None = None) -> Flask:
         )
 
         if request.method == "POST":
+            remove_photo = request.form.get("remove_photo") == "1"
+            try:
+                uploaded_photo = resident_photo_from_upload(request.files.get("resident_photo"))
+            except ValueError as exc:
+                flash(str(exc), "error")
+                return redirect(url_for("edit_resident", resident_id=resident_id))
+            resident_photo = uploaded_photo if uploaded_photo is not None else (None if remove_photo else resident.get("photo_data"))
             new_status = request.form.get("status", "Active")
             room_id = value_or_none(request.form.get("room_id"))
             left_date = request.form.get("left_date") or None
@@ -511,7 +543,8 @@ def create_app(test_config: dict | None = None) -> Flask:
                 SET full_name = %s, phone = %s, nic = %s, date_of_birth = %s, address = %s, faculty = %s,
                     guardian_name = %s, guardian_phone = %s, room_id = %s, monthly_fee = %s, status = %s,
                     left_date = %s, previous_room_id = %s, joined_date = %s,
-                    expected_arrival_date = %s, admission_fee = %s, admission_fee_paid = %s, admission_fee_status = %s
+                    expected_arrival_date = %s, admission_fee = %s, admission_fee_paid = %s, admission_fee_status = %s,
+                    photo_data = %s
                 WHERE id = %s
                 """,
                 (
@@ -533,6 +566,7 @@ def create_app(test_config: dict | None = None) -> Flask:
                     admission_fee,
                     admission_fee_paid,
                     admission_fee_status,
+                    resident_photo,
                     resident_id,
                 ),
             )
@@ -1341,7 +1375,9 @@ def init_db() -> None:
 
                 admission_fee_paid NUMERIC(12, 2) NOT NULL DEFAULT 0,
 
-                admission_fee_status TEXT NOT NULL DEFAULT 'Unpaid'
+                admission_fee_status TEXT NOT NULL DEFAULT 'Unpaid',
+
+                photo_data TEXT
 
             );
 
@@ -1428,6 +1464,7 @@ def init_db() -> None:
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee NUMERIC(12, 2) NOT NULL DEFAULT 0;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee_paid NUMERIC(12, 2) NOT NULL DEFAULT 0;
             ALTER TABLE residents ADD COLUMN IF NOT EXISTS admission_fee_status TEXT NOT NULL DEFAULT 'Unpaid';
+            ALTER TABLE residents ADD COLUMN IF NOT EXISTS photo_data TEXT;
             ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_month TEXT;
             UPDATE payments p
             SET payment_month = mf.month

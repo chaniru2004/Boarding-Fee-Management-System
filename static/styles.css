@@ -361,6 +361,56 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.18);
 }
 
+.resident-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.resident-avatar,
+.resident-photo-preview {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: #f1f5f9;
+}
+
+.resident-photo-field {
+  grid-column: 1 / -1;
+}
+
+.resident-photo-preview {
+  display: block;
+  width: 92px;
+  height: 92px;
+  margin: 0 0 9px;
+  border-radius: 14px;
+}
+
+.photo-help {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.photo-remove {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 500;
+}
+
+.photo-remove input {
+  width: auto;
+  min-height: auto;
+}
+
 .inline-form {
   display: flex;
   gap: 8px;
