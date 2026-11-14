@@ -385,6 +385,51 @@ def create_app(test_config: dict | None = None) -> Flask:
             total_available_beds=total_available_beds,
         )
 
+    @app.route("/residents/<int:resident_id>")
+    def resident_profile(resident_id: int):
+        resident = get_one(
+            """
+            SELECT r.*, rooms.room_number,
+                   prev_rooms.room_number AS previous_room_number
+            FROM residents r
+            LEFT JOIN rooms ON rooms.id = r.room_id
+            LEFT JOIN rooms prev_rooms ON prev_rooms.id = r.previous_room_id
+            WHERE r.id = %s
+            """,
+            (resident_id,),
+        )
+        if not resident:
+            flash("Resident not found.", "warning")
+            return redirect(url_for("residents"))
+
+        fees = g.db.execute(
+            """
+            SELECT * FROM monthly_fees
+            WHERE resident_id = %s
+            ORDER BY CASE WHEN month = 'Admission' THEN 0 ELSE 1 END, month DESC
+            """,
+            (resident_id,),
+        ).fetchall()
+        payments = g.db.execute(
+            """
+            SELECT p.*, mf.month
+            FROM payments p
+            JOIN monthly_fees mf ON mf.id = p.monthly_fee_id
+            WHERE mf.resident_id = %s
+            ORDER BY p.payment_date DESC, p.created_at DESC
+            LIMIT 12
+            """,
+            (resident_id,),
+        ).fetchall()
+
+        return render_template(
+            "resident_profile.html",
+            active="residents",
+            resident=resident,
+            fees=fees,
+            payments=payments,
+        )
+
     @app.route("/residents/<int:resident_id>/check-in", methods=["POST"])
     def check_in_resident(resident_id: int):
         resident = get_one(

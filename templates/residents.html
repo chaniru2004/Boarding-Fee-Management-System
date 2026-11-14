@@ -184,8 +184,10 @@
       {% for resident in active_residents %}
       <tr class="resident-table-row">
         <td class="resident-name-cell">
-          {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
-          <strong>{{ resident.full_name }}</strong>
+          <a class="resident-profile-link" href="{{ url_for('resident_profile', resident_id=resident.id) }}">
+            {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
+            <strong>{{ resident.full_name }}</strong>
+          </a>
         </td>
         <td>{{ resident.nic or "-" }}</td>
         <td>
@@ -250,8 +252,10 @@
       {% for resident in soon_residents %}
       <tr class="resident-table-row">
         <td class="resident-name-cell">
-          {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
-          <strong>{{ resident.full_name }}</strong>
+          <a class="resident-profile-link" href="{{ url_for('resident_profile', resident_id=resident.id) }}">
+            {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
+            <strong>{{ resident.full_name }}</strong>
+          </a>
         </td>
         <td>{{ resident.nic or "-" }}</td>
         <td>
@@ -340,8 +344,10 @@
       {% for resident in left_residents %}
       <tr class="resident-table-row">
         <td class="resident-name-cell">
-          {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
-          <strong>{{ resident.full_name }}</strong>
+          <a class="resident-profile-link" href="{{ url_for('resident_profile', resident_id=resident.id) }}">
+            {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
+            <strong>{{ resident.full_name }}</strong>
+          </a>
         </td>
         <td>{{ resident.nic or "-" }}</td>
         <td>
@@ -407,8 +413,10 @@
       {% for resident in inactive_residents %}
       <tr class="resident-table-row">
         <td class="resident-name-cell">
-          {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
-          <strong>{{ resident.full_name }}</strong>
+          <a class="resident-profile-link" href="{{ url_for('resident_profile', resident_id=resident.id) }}">
+            {% if resident.photo_data %}<img src="{{ resident.photo_data }}" class="resident-avatar" alt="{{ resident.full_name }}">{% endif %}
+            <strong>{{ resident.full_name }}</strong>
+          </a>
         </td>
         <td>{{ resident.nic or "-" }}</td>
         <td><span style="color: var(--muted);">Vacated</span></td>

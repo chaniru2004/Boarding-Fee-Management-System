@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Resident Profile</p>
+    <h2>{{ resident.full_name }}</h2>
+  </div>
+  <div class="profile-actions">
+    <a class="button-link" href="{{ url_for('residents') }}">Back to Residents</a>
+    <a class="button-link button-secondary" href="{{ url_for('edit_resident', resident_id=resident.id) }}">Edit Resident</a>
+  </div>
+</section>
+
+<section class="profile-hero panel">
+  {% if resident.photo_data %}
+  <img class="profile-photo" src="{{ resident.photo_data }}" alt="{{ resident.full_name }}">
+  {% else %}
+  <div class="profile-photo profile-photo-placeholder">{{ resident.full_name[:1] }}</div>
+  {% endif %}
+  <div>
+    <p class="eyebrow">{{ resident.status or 'Resident' }}</p>
+    <h3>{{ resident.full_name }}</h3>
+    <p class="profile-subtitle">NIC: {{ resident.nic or 'Not provided' }}</p>
+    <span class="badge {{ 'badge-active' if resident.status == 'Active' else 'badge-booking' if resident.status == 'Soon to Arrive' else 'badge-left' }}">{{ resident.status or 'Unknown' }}</span>
+  </div>
+</section>
+
+<div class="profile-grid">
+  <section class="panel profile-section">
+    <p class="eyebrow">Personal Details</p>
+    <div class="detail-list">
+      <div><span>Full Name</span><strong>{{ resident.full_name }}</strong></div>
+      <div><span>NIC</span><strong>{{ resident.nic or '-' }}</strong></div>
+      <div><span>Phone</span><strong>{{ resident.phone or '-' }}</strong></div>
+      <div><span>Date of Birth</span><strong>{{ resident.date_of_birth or '-' }}</strong></div>
+      <div><span>Faculty</span><strong>{{ resident.faculty or '-' }}</strong></div>
+      <div><span>Address</span><strong>{{ resident.address or '-' }}</strong></div>
+    </div>
+  </section>
+
+  <section class="panel profile-section">
+    <p class="eyebrow">Boarding Details</p>
+    <div class="detail-list">
+      <div><span>Room</span><strong>{{ resident.room_number or 'No room assigned' }}</strong></div>
+      {% if resident.status == 'Left' and resident.previous_room_number %}
+      <div><span>Previous Room</span><strong>{{ resident.previous_room_number }}</strong></div>
+      {% endif %}
+      <div><span>Joined Date</span><strong>{{ resident.joined_date or '-' }}</strong></div>
+      <div><span>Expected Arrival</span><strong>{{ resident.expected_arrival_date or '-' }}</strong></div>
+      <div><span>Guardian</span><strong>{{ resident.guardian_name or '-' }}</strong></div>
+      <div><span>Guardian Phone</span><strong>{{ resident.guardian_phone or '-' }}</strong></div>
+    </div>
+  </section>
+</div>
+
+<section class="panel profile-section" style="margin-top: 24px;">
+  <div class="section-heading-row">
+    <div>
+      <p class="eyebrow">Fee History</p>
+      <h3>Monthly and Admission Fees</h3>
+    </div>
+    <strong class="profile-total">Rs. {{ money(resident.monthly_fee) }} / month</strong>
+  </div>
+  <div class="table-container">
+    <table>
+      <thead><tr><th>Period</th><th>Due Date</th><th>Amount Due</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for fee in fees %}
+        <tr>
+          <td><strong>{{ 'Admission Fee' if fee.month == 'Admission' else format_month(fee.month) }}</strong></td>
+          <td>{{ fee.due_date or '-' }}</td>
+          <td>Rs. {{ money(fee.amount_due) }}</td>
+          <td>Rs. {{ money(fee.amount_paid) }}</td>
+          <td>Rs. {{ money(fee.balance) }}</td>
+          <td><span class="badge {{ 'badge-paid' if fee.status == 'Paid' else 'badge-part-paid' if fee.status == 'Part Paid' else 'badge-unpaid' }}">{{ fee.status }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="empty-state">No fee records found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel profile-section" style="margin-top: 24px;">
+  <p class="eyebrow">Payment History</p>
+  <h3>Recent Payments</h3>
+  <div class="table-container">
+    <table>
+      <thead><tr><th>Date</th><th>Period</th><th>Receipt</th><th>Method</th><th>Amount</th></tr></thead>
+      <tbody>
+        {% for payment in payments %}
+        <tr>
+          <td>{{ payment.payment_date or '-' }}</td>
+          <td>{{ 'Admission Fee' if payment.month == 'Admission' else format_month(payment.month) }}</td>
+          <td>{{ payment.receipt_number }}</td>
+          <td>{{ payment.payment_method }}</td>
+          <td><strong>Rs. {{ money(payment.amount) }}</strong></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5" class="empty-state">No payments found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
