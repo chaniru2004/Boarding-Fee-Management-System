@@ -18,6 +18,28 @@ from pathlib import Path
 import pg8000.dbapi
 from PIL import Image, UnidentifiedImageError
 
+try:
+    import scramp
+
+    _orig_scram_init = scramp.ScramClient.__init__
+
+    def _patched_scram_init(self, mechanisms, username, password, channel_binding=None, *args, **kwargs):
+        try:
+            return _orig_scram_init(
+                self, mechanisms, username, password, channel_binding=channel_binding, *args, **kwargs
+            )
+        except Exception as exc:
+            if "peer certificate" in str(exc).lower() and "SCRAM-SHA-256" in mechanisms:
+                fallback_mechs = [m for m in mechanisms if not m.endswith("-PLUS")]
+                return _orig_scram_init(
+                    self, fallback_mechs, username, password, channel_binding=None, *args, **kwargs
+                )
+            raise
+
+    scramp.ScramClient.__init__ = _patched_scram_init
+except ImportError:
+    pass
+
 from flask import Flask, flash, g, redirect, render_template, request, send_file, url_for
 
 BASE_DIR = Path(__file__).resolve().parent
