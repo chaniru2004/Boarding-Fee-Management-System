@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlparse, urlunparse
 from workers import WorkerEntrypoint, wsgi
 
 from app import app, init_db
@@ -9,6 +10,11 @@ _db_initialized = False
 class Default(WorkerEntrypoint):
     async def fetch(self, request):
         global _db_initialized
+
+        parsed = urlparse(request.url)
+        if parsed.path.startswith("/static/") and hasattr(self.env, "ASSETS"):
+            asset_url = urlunparse(parsed._replace(path=parsed.path[len("/static"):]))
+            return await self.env.ASSETS.fetch(asset_url)
 
         db_url = getattr(self.env, "DATABASE_URL", None)
         if db_url:
