@@ -13,3 +13,6 @@ dev = [
     "workers-py>=1.9.0",
     "workers-runtime-sdk",
 ]
+
+[tool.setuptools]
+py-modules = ["worker", "app"]
