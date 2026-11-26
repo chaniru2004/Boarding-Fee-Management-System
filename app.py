@@ -1367,11 +1367,11 @@ def current_app_database_url() -> str:
 
     from flask import current_app
 
-    database_url = current_app.config.get("DATABASE_URL")
+    database_url = current_app.config.get("DATABASE_URL") or os.environ.get("DATABASE_URL")
 
     if not database_url:
 
-        raise RuntimeError("DATABASE_URL is not set. Add the Neon PostgreSQL DATABASE_URL environment variable in Vercel.")
+        raise RuntimeError("DATABASE_URL is not set. Add the Neon PostgreSQL DATABASE_URL environment variable.")
 
     return database_url
 
