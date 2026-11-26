@@ -5,13 +5,5 @@
   "compatibility_date": "2026-11-25",
   "compatibility_flags": [
     "python_workers"
-  ],
-  "find_additional_modules": true,
-  "rules": [
-    {
-      "type": "Text",
-      "globs": ["templates/**/*.html", "static/**/*.css"],
-      "fallthrough": true
-    }
   ]
 }

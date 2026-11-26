@@ -4,7 +4,7 @@ version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
     "Flask==3.0.3",
-    "psycopg>=3.2.10,<4",
+    "pg8000>=1.31.2,<2",
     "Pillow>=10.0.0,<13",
 ]
 

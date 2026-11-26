@@ -5,6 +5,7 @@ import csv
 import io
 import os
 import re
+import ssl
 import urllib.parse
 import zipfile
 
@@ -14,10 +15,8 @@ from decimal import Decimal, ROUND_HALF_UP
 
 from pathlib import Path
 
-import psycopg
+import pg8000.dbapi
 from PIL import Image, UnidentifiedImageError
-
-from psycopg.rows import dict_row
 
 from flask import Flask, flash, g, redirect, render_template, request, send_file, url_for
 
@@ -1357,11 +1356,118 @@ def create_app(test_config: dict | None = None) -> Flask:
 
     return app
 
+class _DictCursor:
+    """Wrap a pg8000 DB-API cursor to return dict rows like psycopg's dict_row."""
+
+    def __init__(self, cursor) -> None:
+        self._cursor = cursor
+
+    def execute(self, sql: str, params=None):
+        if params is None:
+            self._cursor.execute(sql)
+        else:
+            self._cursor.execute(sql, params)
+        return self
+
+    def _row_to_dict(self, row):
+        if row is None:
+            return None
+        columns = [col[0] for col in (self._cursor.description or ())]
+        return dict(zip(columns, row))
+
+    def fetchone(self):
+        return self._row_to_dict(self._cursor.fetchone())
+
+    def fetchall(self):
+        rows = self._cursor.fetchall()
+        if not rows:
+            return []
+        columns = [col[0] for col in (self._cursor.description or ())]
+        return [dict(zip(columns, row)) for row in rows]
+
+    def fetchmany(self, size=None):
+        rows = self._cursor.fetchmany() if size is None else self._cursor.fetchmany(size)
+        if not rows:
+            return []
+        columns = [col[0] for col in (self._cursor.description or ())]
+        return [dict(zip(columns, row)) for row in rows]
+
+    def __iter__(self):
+        columns = [col[0] for col in (self._cursor.description or ())]
+        for row in self._cursor:
+            yield dict(zip(columns, row))
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._cursor.close()
+
+    def __getattr__(self, name: str):
+        return getattr(self._cursor, name)
+
+
+class _PgConnection:
+    """Wrap a pg8000 DB-API connection with psycopg-compatible execute() and context manager."""
+
+    def __init__(self, conn) -> None:
+        self._conn = conn
+
+    def cursor(self):
+        return _DictCursor(self._conn.cursor())
+
+    def execute(self, sql: str, params=None):
+        cur = self.cursor()
+        cur.execute(sql, params)
+        return cur
+
+    def commit(self) -> None:
+        self._conn.commit()
+
+    def rollback(self) -> None:
+        self._conn.rollback()
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            if exc_type is None:
+                self._conn.commit()
+            else:
+                self._conn.rollback()
+        finally:
+            self._conn.close()
+
+    def __getattr__(self, name: str):
+        return getattr(self._conn, name)
+
+
+def _connect_pg(database_url: str) -> _PgConnection:
+    parsed = urllib.parse.urlparse(database_url)
+    query = urllib.parse.parse_qs(parsed.query)
+    sslmode = (query.get("sslmode", ["require"])[0] or "require").lower()
+    ssl_context = None if sslmode == "disable" else ssl.create_default_context()
+
+    conn = pg8000.dbapi.connect(
+        user=urllib.parse.unquote(parsed.username or ""),
+        password=urllib.parse.unquote(parsed.password or ""),
+        host=parsed.hostname or "localhost",
+        port=parsed.port or 5432,
+        database=(parsed.path or "").lstrip("/"),
+        ssl_context=ssl_context,
+    )
+    return _PgConnection(conn)
+
+
 def get_db():
 
     database_url = current_app_database_url()
 
-    return psycopg.connect(database_url, row_factory=dict_row)
+    return _connect_pg(database_url)
 
 def current_app_database_url() -> str:
 
@@ -1385,7 +1491,7 @@ def execute_script(db, script: str) -> None:
 
 def init_db() -> None:
 
-    with psycopg.connect(current_app_database_url(), row_factory=dict_row) as db:
+    with _connect_pg(current_app_database_url()) as db:
 
         execute_script(
 
